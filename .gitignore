@@ -1,0 +1,6 @@
+.nyc_output/
+build/
+coverage/
+doc/
+node_modules/
+reports/
