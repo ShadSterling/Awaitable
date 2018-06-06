@@ -1,0 +1,10 @@
+{
+	"spec":                             "-",
+	"tap":                              "reports/report-tap.text",
+	"json":                             "reports/report.json",
+	"doc":                              "reports/report.html",
+	"markdown":                         "reports/report.md",
+	"xunit":                            "reports/report-xunit.xml",
+	"mocha-sonar-reporter": { "stdout": "reports/report-sonar-stdout.xml",   "options": { "outputfile": "reports/report-sonar.xml"           } },
+	"mochawesome":          { "stdout": "reports/mochawesome/output.log",    "options": { "reportDir":  "reports/mochawesome", "quiet": true } }
+}

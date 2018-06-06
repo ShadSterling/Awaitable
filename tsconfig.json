@@ -1,0 +1,53 @@
+{
+	"compileOnSave": true,
+    "compilerOptions": {
+		"lib": ["es2018"],
+		"target": "es5",
+        "module": "commonjs",
+        "outDir": "./build/",
+
+        "allowJs": false,
+        "allowSyntheticDefaultImports": false,
+        "allowUnreachableCode": false,
+        "allowUnusedLabels": false,
+        "alwaysStrict": true,
+        "declaration": true,
+        "diagnostics": false,
+        "disableSizeLimit": false,
+        "forceConsistentCasingInFileNames": true,
+        "importHelpers": false,
+        "inlineSourceMap": true,
+        "inlineSources": false,
+        "isolatedModules": false,
+        "jsx": "react",
+        "listEmittedFiles": false,
+        "listFiles": false,
+        "moduleResolution": "node",
+        "newLine": "lf",
+        "noErrorTruncation": true,
+        "noFallthroughCasesInSwitch": false,
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": true,
+        "noImplicitUseStrict": false,
+        "noLib": false,
+        "noStrictGenericChecks": false,
+        "noUnusedLocals": false, // Strictly for typedoc, which checks for unused type parameters when this is true
+        "noUnusedParameters": false,
+        "preserveConstEnums": true,
+        "preserveSymlinks": false,
+        "pretty": true,
+        "removeComments": false,
+        "skipLibCheck": false,
+        "sourceMap": false,
+        "strict": true,
+        "strictFunctionTypes": true,
+		"strictNullChecks": true,
+        "strictPropertyInitialization": true,
+        "suppressExcessPropertyErrors": false,
+        "suppressImplicitAnyIndexErrors": false
+    },
+    "include": [
+        "src/**/*"
+    ]
+}
