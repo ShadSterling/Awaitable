@@ -18,6 +18,14 @@ export interface Thenable<T=any> { // tslint:disable-line:interface-name no-any 
 
 /** My personal "personal quirks" idiomatic miscellanious helper collection */
 export class Helpers { // tslint:disable-line:no-unnecessary-class
+	/** MacroTasks run from a FIFO queue, when queue is empty program ends */
+	public static asyncMacro( task: ()=>void ) {
+		setTimeout( task, 0 ); // TODO: args; take <T> as argtype?
+	}
+	/** MicroTasks run from a FIFO queue, when queue is empty next MacroTask runs */
+	public static asyncMicro( task: ()=>void ) {
+		Promise.resolve().then( task ); // TODO: args; take <T> as argtype?
+	}
 	/** Insert the elements of one array into another array */
 	public static arrayInsertArray<T=any>( into:T[], elms:ReadonlyArray<T>, start:number ): T[] { // tslint:disable-line:no-any // TODO: option to put result in new array
 		let i: number;
@@ -393,6 +401,24 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		} catch(e) {
 			return false;
 		}
+	}
+	/** Tries to identify the type of x */
+	public static whatIs( x: any ): string { // tslint:disable-line:no-any // accepting any is the point here
+		let r: string = typeof x;
+		if( typeof x === "object" ) {
+			if( x === null ) { r = "null"; }
+			else {
+				// TODO: detect more things
+			}
+		}
+		return r;
+	}
+	/** Convert any object into a (possibly meaningless) string */
+	public static stringify( x: any ):string { // tslint:disable-line:no-any // accepting any is the point here
+		if( typeof x !== "object" ) { return `${x}`; } // tslint:disable-line:no-unsafe-any // accepting any is the point here
+		if( x === null ) { return "null"; }
+		if( typeof x.toString === "function" ) { return x.toString(); } // tslint:disable-line:no-unsafe-any // accepting any is the point here
+		return this.JSONify( x );
 	}
 }
 
