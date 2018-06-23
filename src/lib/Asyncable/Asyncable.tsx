@@ -5,7 +5,9 @@ import { Deferred, DeferredAsyncablePromise } from "./DeferredAsyncablePromise";
 
 export type AsyncableResolver<T> = ( value:  T | PromiseLike<T>  ) => void;
 export type AsyncableRejecter<T> = ( reason: any                 ) => void; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
-export type AsyncablePreparer<T> = ( resolve: AsyncableResolver<T>, reject: AsyncableRejecter<T> ) => void | undefined;
+export type AsyncablePreparer<T> = ( ac: AsyncableController<T>, ) => ( AsyncablePrepared<T> | undefined | void );
+export type AsyncableStarter<T> = ( ac: AsyncableController<T>, ) => void;
+export type AsyncablePrepared<T> = { starter?: AsyncableStarter<T> }; // TODO: class with fromRaw-style constructor
 export type PromiseCallbackFulfilled<T,TResult1> = ( (  value: T   ) => TResult1 | PromiseLike<TResult1> ) | null | undefined;
 export type PromiseCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 export enum AsyncableState { PENDING, FULFILLED, REJECTED }
@@ -25,10 +27,11 @@ export class Asyncable<T> {
 	public static resolve<T>( value: T | PromiseLike<T> ) {
 		const label = `${this.name}.resolve`;
 		debug( `${label}: Invoked` );
-		const exec: AsyncablePreparer<T> = ( resolve, reject ) => { // tslint:disable-line:no-unused-variable // keep parameters from type
+		const exec: AsyncablePreparer<T> = ( ac ) => { // tslint:disable-line:no-unused-variable // keep parameters from type
 			debug( `${label}/exec: Invoked` );
-			resolve( value );
+			ac.resolve( value );
 			debug( `${label}/exec: Finished` );
+			return {};
 		};
 		const r = new Asyncable<T>( exec );
 		debug( `${label}: Returning ${r}` );
@@ -39,10 +42,11 @@ export class Asyncable<T> {
 	public static reject<T>( reason: any ) { // tslint:disable-line:no-any // any for compatibility
 		const label = `${this.name}.reject`;
 		debug( `${label}: Invoked` );
-		const exec: AsyncablePreparer<T> = ( resolve, reject ) => { // tslint:disable-line:no-unused-variable // keep parameters from type
+		const exec: AsyncablePreparer<T> = ( ac ) => { // tslint:disable-line:no-unused-variable // keep parameters from type
 			debug( `${label}/exec: Invoked` );
-			reject( reason );
+			ac.reject( reason );
 			debug( `${label}/exec: Finished` );
+			return {};
 		};
 		const r = new Asyncable<T>( exec );
 		debug( `${label}: Returning ${r}` );
@@ -60,7 +64,7 @@ export class Asyncable<T> {
 		return r;
 	}
 
-	/** Returns the then method, if and only if p is thenable */
+	/** Returns the then method, if and only if p is thenable */ // TODO: use Helper
 	private static _thenIfThenable( p: any ): AsyncableThen | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
 			const then: AsyncableThen | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
@@ -70,8 +74,8 @@ export class Asyncable<T> {
 		}
 	}
 
-	/** For compatibility with Promises */
-	public readonly [Symbol.toStringTag]: "Promise";
+	/** Not compatibile with Promises */
+	public readonly [Symbol.toStringTag]: "Asyncable";
 
 	/** An ID for this particular [[Asyncable]] (for logging and debugging) */
 	private readonly _id: string = Asyncable._newID();
@@ -88,14 +92,17 @@ export class Asyncable<T> {
 	/** Callbacks to be invoked of and when this [[Asyncable]] settles to rejected. */
 	private readonly _onRejected: AsyncableChainRejected<T>[] = [];
 
-	/** Compatible with ES6 Promise constructor */
-	public constructor( executor: AsyncablePreparer<T> ) {
+	/** Not compatible with ES6 Promise constructor */
+	public constructor( preparer: AsyncablePreparer<T> ) {
 		const _fn = `constructor`;
 		debug( `${this.label(_fn)}: Invoked` );
-		const resolve: AsyncableResolver<T> = ( value ) => { this._resolve( value  ); };
-		const reject:  AsyncableRejecter<T> = ( reason: any ): void => { this._reject(  reason ); }; // tslint:disable-line:no-any // any for compatibility
-		debug( `${this.label(_fn)}: Invoking executor` );
-		executor( resolve, reject );
+		const ac: AsyncableController<T> = new AsyncableController<T>(
+			( value ) => { this._resolve( value  ); },
+			( reason: any ): void => { this._reject(  reason ); }, // tslint:disable-line:no-any // TODO: reason type parameter (default string)
+		);
+		debug( `${this.label(_fn)}: Invoking preparer` );
+		const prepared: AsyncablePrepared<T> = preparer( ac ) || {}; // TODO: run through constructor to ensure validity and warn of extra properties
+		if( prepared.starter ) { throw new Error( this.label(_fn) + ": UNIMPLEMENTED - Asyncable that needs a separate start step" ); }
 		debug( `${this.label(_fn)}: Finished` );
 	}
 
@@ -116,23 +123,23 @@ export class Asyncable<T> {
 		switch( this._state ) {
 			case AsyncableState.PENDING:
 				debug( `${this.label(_fn)}: deferred settling` );
-				const execp: AsyncablePreparer< TResult1 | TResult2 > = (resolve,reject) => {
+				const execp: AsyncablePreparer< TResult1 | TResult2 > = (ac) => {
 					debug( `${this.label(_fn)}/exec: Invoked` );
 					const onf: AsyncableChainFulfilled<T> = typeof onfulfilled === "function"
 						? (val) => {
 							debug( `${this.label(_fn)}/exec/onf: Invoked (invoking onfulfilled)` );
 							try {
 								const v: TResult1 | PromiseLike<TResult1> = onfulfilled( val );
-								resolve( v );
+								ac.resolve( v );
 							} catch(e) {
 								debug( `${this.label(_fn)}/exec/onf: onfulfilled threw -- %O`, e );
-								reject( e );
+								ac.reject( e );
 							}
 							debug( `${this.label(_fn)}/exec/onf: Finished` );
 						}
 						: (val) => {
 							debug( `${this.label(_fn)}/exec/onf: Invoked (no onfulfilled)` );
-							resolve( val as {} as TResult1 ); // without onfulfilled this is a reinterpret cast
+							ac.resolve( val as {} as TResult1 ); // without onfulfilled this is a reinterpret cast
 							debug( `${this.label(_fn)}/exec/onf: Finished` );
 						};
 					this._onFulfilled.push( onf );
@@ -141,44 +148,44 @@ export class Asyncable<T> {
 							debug( `${this.label(_fn)}/exec/onr: Invoked (invoking onrejected)` );
 							try {
 								const v: TResult2 | PromiseLike<TResult2> = onrejected( reason );
-								resolve( v );
+								ac.resolve( v );
 							} catch(e) {
 								debug( `${this.label(_fn)}/exec/onr: onrejected threw -- %O`, e );
-								reject( e );
+								ac.reject( e );
 							}
 							debug( `${this.label(_fn)}/exec/onr: Finished` );
 						}
 						: (reason) => {
 							debug( `${this.label(_fn)}/exec/onr: Invoked (no onrejected)` );
-							reject( reason );
+							ac.reject( reason );
 							debug( `${this.label(_fn)}/exec/onr: Finished` );
 						};
 					this._onRejected.push( onr );
-					debug( `${this.label(_fn)}/exec: Returning -- ${undefined}` );
+					debug( `${this.label(_fn)}/exec: Finished` );
 				};
 				r = new Asyncable< TResult1 | TResult2 >( execp );
 				break;
 			case AsyncableState.FULFILLED:
 				debug( `${this.label(_fn)}: immediate fulfillment` );
 				const execf: AsyncablePreparer<TResult1> = typeof onfulfilled === "function"
-					? (resolve,reject) => {
+					? (ac) => {
 						debug( `${this.label(_fn)}/exec: Invoked (invoking onfulfilled) (BRANCH SYNC)` );
 						setTimeout( () => {
 							debug( `${this.label(_fn)}/exec: Invoked (invoking onfulfilled) (NEW SYNC)` );
 							try {
 								const value = onfulfilled( this._value as T ); // state FULFILLED means _value is set
-								resolve( value );
+								ac.resolve( value );
 							} catch(e) {
 								debug( `${this.label(_fn)}: onfulfilled threw -- %O`, e );
-								reject( e );
+								ac.reject( e );
 							}
 							debug( `${this.label(_fn)}/exec: Invoked (invoked onfulfilled) (END SYNC)` );
 						}, 0 );
 						debug( `${this.label(_fn)}/exec: Finished` );
 					}
-					: (resolve,reject) => { // tslint:disable-line:no-unused-variable // keep parameters from type
+					: (ac) => { // tslint:disable-line:no-unused-variable // keep parameters from type
 						debug( `${this.label(_fn)}/exec: Invoked (no onfulfilled)` );
-						resolve( this._value as {} as TResult1 ); // without onfulfilled this is a reinterpret cast
+						ac.resolve( this._value as {} as TResult1 ); // without onfulfilled this is a reinterpret cast
 						debug( `${this.label(_fn)}/exec: Finished` );
 					};
 				r = new Asyncable< TResult1 | TResult2 >( execf ); // TODO: why can't this just be TResult1?
@@ -186,25 +193,25 @@ export class Asyncable<T> {
 			case AsyncableState.REJECTED:
 				debug( `${this.label(_fn)}: immediate rejection` );
 				const execr: AsyncablePreparer< TResult1 | TResult2 > = typeof onrejected === "function"
-					? (resolve,reject) => { // tslint:disable-line:no-unused-variable // keep parameters from type
+					? (ac) => { // tslint:disable-line:no-unused-variable // keep parameters from type
 						debug( `${this.label(_fn)}/exec: Invoked (invoking onrejected) (BRANCH SYNC)` );
 						setTimeout( () => {
 							debug( `${this.label(_fn)}/exec: Invoked (invoking onrejected) (NEW SYNC)` );
 							try {
 								const value: TResult2 | PromiseLike<TResult2> = onrejected( this._reason );
 								debug( `${this.label(_fn)}: onrejected returned -- %O`, value );
-								resolve( value );
+								ac.resolve( value );
 							} catch(e) {
 								debug( `${this.label(_fn)}: onrejected threw -- %O`, e );
-								reject( e );
+								ac.reject( e );
 							}
 							debug( `${this.label(_fn)}/exec: Invoked (invoked onrejected) (END SYNC)` );
 						}, 0 );
 						debug( `${this.label(_fn)}/exec: Finished` );
 					}
-					: (resolve,reject) => { // tslint:disable-line:no-unused-variable // keep parameters from type
+					: (ac) => { // tslint:disable-line:no-unused-variable // keep parameters from type
 						debug( `${this.label(_fn)}/exec: Invoked (no onrejected)` );
-						reject( this._reason );
+						ac.reject( this._reason );
 						debug( `${this.label(_fn)}/exec: Finished` );
 					};
 				r = new Asyncable< TResult1 | TResult2 >( execr ); // TODO: why can't this just be TResult1?
@@ -379,4 +386,13 @@ export class Asyncable<T> {
 		debug( `${this.label(_fn)}: Finished` );
 	}
 
+}
+
+/** Controller used within the asynchronous task represented by an Asyncable */
+export class AsyncableController<T> {
+	public constructor(
+		public readonly resolve: AsyncableResolver<T>,
+		public readonly reject:  AsyncableRejecter<T>,
+	) {
+	}
 }

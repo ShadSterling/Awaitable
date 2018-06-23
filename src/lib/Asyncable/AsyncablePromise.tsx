@@ -34,17 +34,17 @@ export class AsyncablePromise<T> implements Promise<T> {
 			this._asyncable = init;
 		} else {
 			debug( `${this.label(_fn)}: Invoking executor` );
-			this._asyncable = new Asyncable<T>( (_resolve,_reject) => {
+			this._asyncable = new Asyncable<T>( (ac) => {
 				debug( `${this.label(_fn)}/executor: Invoked` );
 				const fulfill: PromiseFulfiller<T> = ( value ) => {
 					debug( `${this.label()}/fulfiller: Invoked` );
-					if( value === this ) { _reject( new TypeError( "AsyncablePromise cannot be resolved to itself" ) ); }
-					else { _resolve( value ); }
+					if( value === this ) { ac.reject( new TypeError( "AsyncablePromise cannot be resolved to itself" ) ); }
+					else { ac.resolve( value ); }
 					debug( `${this.label()}/fulfiller: Finished` );
 				};
 				const reject:  PromiseRejecter<T> = ( reason ) => {
 					debug( `${this.label()}/rejecter: Invoked` );
-					_reject( reason );
+					ac.reject( reason );
 					debug( `${this.label()}/rejecter: Finished` );
 				};
 				init( fulfill, reject );
