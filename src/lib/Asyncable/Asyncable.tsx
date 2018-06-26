@@ -1,6 +1,7 @@
 import * as debugFactory from "debug";
 const debug: debugFactory.IDebugger = debugFactory( "Asyncable" );
 
+import { AsyncablePromise, PromiseExecutor } from "./AsyncablePromise";
 import { Deferred, DeferredAsyncablePromise } from "./DeferredAsyncablePromise";
 
 export type AsyncableResolver<T> = ( value:  T | PromiseLike<T>  ) => void;
@@ -13,7 +14,8 @@ export type PromiseCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2
 export enum AsyncableState { PENDING, FULFILLED, REJECTED }
 export type AsyncableCallbackFulfilled<T,TResult1> = ( (  value: T   ) => TResult1 | PromiseLike<TResult1> ) | null | undefined;
 export type AsyncableCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
-type AsyncableThen = <T, TResult1, TResult2>( onfulfilled?: AsyncableCallbackFulfilled<T,TResult1>, onrejected?:  AsyncableCallbackRejected< T,TResult2>, ) => Asyncable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
+export type AsyncableCallbackFinally<  T         > = ( (        ) => T | PromiseLike<T> | undefined | void ) | null | undefined;
+type AsyncableThen<T, TResult1=T, TResult2=never> = ( onfulfilled?: AsyncableCallbackFulfilled<T,TResult1>, onrejected?:  AsyncableCallbackRejected< T,TResult2>, ) => Asyncable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
 type AsyncableChainFulfilled<T> = (  value: T   ) => void;
 type AsyncableChainRejected< T> = ( reason: any ) => void; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 
@@ -56,6 +58,9 @@ export class Asyncable<T> {
 	/** Factory needed by the [Promise test suite](https://github.com/promises-aplus/promises-tests) */
 	public static deferred<T>(): Deferred<T> { return new DeferredAsyncablePromise<T>(); }
 
+	/** Factory needed by the Promise Finally tests */
+	public static fromexec<T=any>( exec: PromiseExecutor<T> ): AsyncablePromise<T> { return new AsyncablePromise( exec ); } // tslint:disable-line:no-any // any for compatibility
+
 	/** Generate an ID for a new [[Asyncable]] */
 	private static _newID() {
 		const r: string = `${( Date.now() / 1000 ).toFixed(3)}-${this._nextSuffix.toString().padStart(4,"0")}`; // tslint:disable-line:no-magic-numbers // conversion factor, significant digits
@@ -65,10 +70,10 @@ export class Asyncable<T> {
 	}
 
 	/** Returns the then method, if and only if p is thenable */ // TODO: use Helper
-	private static _thenIfThenable( p: any ): AsyncableThen | undefined { // tslint:disable-line:no-any // any for overloading
+	private static _thenIfThenable<T,TResult1,TResult2>( p: any ): AsyncableThen<T,TResult1,TResult2> | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
-			const then: AsyncableThen | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof then === "function" ? then.bind( p ) as AsyncableThen : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			const then: AsyncableThen<T,TResult1,TResult2> | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof then === "function" ? then.bind( p ) as AsyncableThen<T,TResult1,TResult2> : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}
@@ -116,6 +121,7 @@ export class Asyncable<T> {
 	public then<TResult1 = T, TResult2 = never>(
 		onfulfilled?: AsyncableCallbackFulfilled<T,TResult1>,
 		onrejected?: AsyncableCallbackRejected<T,TResult2>,
+		// onprogress?: // TODO: progress indicators to go with yeildyness
 	): Asyncable< TResult1 | TResult2 > {
 		const _fn = `then`;
 		debug( `${this.label(_fn)}: Invoked in state ${AsyncableState[this._state]}` );
@@ -239,9 +245,29 @@ export class Asyncable<T> {
 	 * @returns An [[Asyncable]] representing this [[Asyncable]] followed by [[onfinally]],
 	 */
 	public finally(
-		onfinally?: ( () => void ) | null | undefined,
+		onfinally?: AsyncableCallbackFinally<T>,
 	): Asyncable<T> {
-		throw new Error( `UNIMPLEMENTED ${this}${onfinally}` );
+		const _fn = `finally`;
+		debug( `${this.label(_fn)}: Invoked in state ${AsyncableState[this._state]}` );
+		let r: Asyncable<T>;
+		if( typeof onfinally === "function" ) {
+			r = this.then<T>(
+				(value ) => {
+					const f = onfinally();
+					const then: AsyncableThen<T> | undefined = Asyncable._thenIfThenable( f );
+					return then ? then( ()=>value ) : value;
+				},
+				(reason) => {
+					const f = onfinally();
+					const then: AsyncableThen<T,never> | undefined = Asyncable._thenIfThenable( f );
+					if( then ) { return then( ()=>{ throw reason; } ); } else { throw reason; }
+				},
+			);
+		} else {
+			r = this.then( onfinally, onfinally );
+		}
+		debug( `${this.label(_fn)}: Returning ${r}` );
+		return r;
 	}
 
 	/** Gets the label of this [[Asyncable]] (for logging and debugging) */
@@ -260,7 +286,7 @@ export class Asyncable<T> {
 					debug( `${this.label(_fn)}: resolve to self -- TypeError` );
 					this._reject( new TypeError( "Asyncable cannot be resolved to itself" ) );
 				} else {
-					let then: AsyncableThen | undefined;
+					let then: AsyncableThen<T,void,void> | undefined;
 					try {
 						then = Asyncable._thenIfThenable( value ); // only retrieve the then function once
 					} catch(e) {
@@ -295,7 +321,7 @@ export class Asyncable<T> {
 								debug( `${this.label(_fn)}/onrejected: Returning for Thenable #${thenNum} -- ${undefined}` );
 							};
 							try {
-								(then as AsyncableThen)( onfulfilled, onrejected ); // if this sync was started, then is an AsyncableThen
+								then!( onfulfilled, onrejected ); // if this sync was started, then is an AsyncableThen
 							} catch(e) {
 								debug( `${this.label(_fn)}: Thenable #${thenNum} threw -- %O`, e );
 								if( thenNum === this._thenCount ) {

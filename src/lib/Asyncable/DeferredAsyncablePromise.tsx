@@ -1,8 +1,8 @@
 import * as debugFactory from "debug";
 const debug: debugFactory.IDebugger = debugFactory( "DeferredAsyncablePromise" );
 
-import { Deferred } from "promises-aplus-tests"; // tslint:disable-line:no-implicit-dependencies // type-only dependency doesn't exist at runtime
-export { Deferred };
+import { DeferredWithFinally as Deferred } from "../../testlib/promises-finally-tests"; // tslint:disable-line:no-implicit-dependencies // type-only dependency doesn't exist at runtime
+export { Deferred  };
 
 import { AsyncablePromise, PromiseFulfiller, PromiseRejecter } from "./AsyncablePromise";
 

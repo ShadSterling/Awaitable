@@ -1,4 +1,4 @@
-import { Deferred } from "promises-aplus-tests"; // tslint:disable-line:no-implicit-dependencies // type-only dependency doesn't exist at runtime
+import { DeferredWithFinally } from "../testlib/promises-finally-tests"; // tslint:disable-line:no-implicit-dependencies // type-only dependency doesn't exist at runtime
 
 import * as debugFactory from "debug";
 const debug: debugFactory.IDebugger = debugFactory( "Awaitable" );
@@ -9,12 +9,14 @@ export type AwaitableExecutor<T> = ( resolve: AwaitableResolver<T>, reject: Awai
 export enum AwaitableState { PENDING, FULFILLED, REJECTED }
 export type AwaitableCallbackFulfilled<T,TResult1> = ( (  value: T   ) => TResult1 | PromiseLike<TResult1> ) | null | undefined;
 export type AwaitableCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
-type AwaitableThen = <T, TResult1, TResult2>( onfulfilled?: AwaitableCallbackFulfilled<T,TResult1>, onrejected?:  AwaitableCallbackRejected< T,TResult2>, ) => Awaitable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
+export type AwaitableCallbackFinally<  T         > = ( (        ) => T | PromiseLike<T> | undefined | void ) | null | undefined;
+type AwaitableThen<T, TResult1=T, TResult2=never> = ( onfulfilled?: AwaitableCallbackFulfilled<T,TResult1>, onrejected?:  AwaitableCallbackRejected< T,TResult2>, ) => Awaitable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
+// type AwaitableThen = <T, TResult1, TResult2>( onfulfilled?: AwaitableCallbackFulfilled<T,TResult1>, onrejected?:  AwaitableCallbackRejected< T,TResult2>, ) => Awaitable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
 type AwaitableChainFulfilled<T> = (  value: T   ) => void;
 type AwaitableChainRejected< T> = ( reason: any ) => void; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 
 /** Rearranged construction interface needed by the [Promise test suite](https://github.com/promises-aplus/promises-tests) */
-export class DeferredAwaitable<T> implements Deferred<T> {
+export class DeferredAwaitable<T> implements DeferredWithFinally<T> {
 
 	/** Constructed [[Awaitable]] */
 	public promise: Awaitable<T>;
@@ -94,7 +96,10 @@ export class Awaitable<T> implements Promise<T> {
 	}
 
 	/** Factory needed by the [Promise test suite](https://github.com/promises-aplus/promises-tests) */
-	public static deferred<T>(): Deferred<T> { return new DeferredAwaitable<T>(); }
+	public static deferred<T=any>(): DeferredWithFinally<T> { return new DeferredAwaitable<T>(); } // tslint:disable-line:no-any // any for compatibility
+
+	/** Factory needed by the Promise Finally tests */
+	public static fromexec<T=any>( exec: AwaitableExecutor<T> ): Awaitable<T> { return new Awaitable( exec ); } // tslint:disable-line:no-any // any for compatibility
 
 	/** Generate an ID for a new [[Awaitable]] */
 	private static _newID() {
@@ -105,10 +110,10 @@ export class Awaitable<T> implements Promise<T> {
 	}
 
 	/** Returns the then method, if and only if p is thenable */
-	private static _thenIfThenable( p: any ): AwaitableThen | undefined { // tslint:disable-line:no-any // any for overloading
+	private static _thenIfThenable<T,TResult1,TResult2>( p: any ): AwaitableThen<T,TResult1,TResult2> | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
-			const then: AwaitableThen | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof then === "function" ? then.bind( p ) as AwaitableThen : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			const then: AwaitableThen<T,TResult1,TResult2> | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof then === "function" ? then.bind( p ) as AwaitableThen<T,TResult1,TResult2> : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}
@@ -127,9 +132,9 @@ export class Awaitable<T> implements Promise<T> {
 	private _reason: any | undefined; // tslint:disable-line:no-any // any for compatibility
 	/** Number of thenables passed to [[_resolve]] */
 	private _thenCount = 0;
-	/** Callbacks to be invoked of and when this [[Awaitable]] settles to fulfilled. */
+	/** Callbacks to be invoked if and when this [[Awaitable]] settles to fulfilled. */
 	private readonly _onFulfilled: AwaitableChainFulfilled<T>[] = [];
-	/** Callbacks to be invoked of and when this [[Awaitable]] settles to rejected. */
+	/** Callbacks to be invoked if and when this [[Awaitable]] settles to rejected. */
 	private readonly _onRejected: AwaitableChainRejected<T>[] = [];
 
 	/** Compatible with ES6 Promise constructor */
@@ -210,7 +215,7 @@ export class Awaitable<T> implements Promise<T> {
 						setTimeout( () => {
 							debug( `${this.label(_fn)}/exec: Invoked (invoking onfulfilled) (NEW SYNC)` );
 							try {
-								const value = onfulfilled( this._value as T ); // state FULFILLED means _value is set
+								const value = onfulfilled( this._value! ); // state FULFILLED means _value is set
 								resolve( value );
 							} catch(e) {
 								debug( `${this.label(_fn)}: onfulfilled threw -- %O`, e );
@@ -267,7 +272,11 @@ export class Awaitable<T> implements Promise<T> {
 	public catch< TResult2 = never >(
 		onrejected?: AwaitableCallbackRejected< T, TResult2 >,
 	): Awaitable< T | TResult2 > {
-		return this.then< T, TResult2 >( undefined, onrejected );
+		const _fn = `catch`;
+		debug( `${this.label(_fn)}: Invoked in state ${AwaitableState[this._state]}` );
+		const r = this.then< T, TResult2 >( undefined, onrejected );
+		debug( `${this.label(_fn)}: Returning ${r}` );
+		return r;
 	}
 
 	/**
@@ -275,9 +284,29 @@ export class Awaitable<T> implements Promise<T> {
 	 * @returns An [[Awaitable]] representing this [[Awaitable]] followed by [[onfinally]],
 	 */
 	public finally(
-		onfinally?: ( () => void ) | null | undefined,
+		onfinally?: AwaitableCallbackFinally<T>,
 	): Awaitable<T> {
-		throw new Error( `UNIMPLEMENTED ${this}${onfinally}` );
+		const _fn = `finally`;
+		debug( `${this.label(_fn)}: Invoked in state ${AwaitableState[this._state]}` );
+		let r: Awaitable<T>;
+		if( typeof onfinally === "function" ) {
+			r = this.then<T>(
+				(value ) => {
+					const f = onfinally();
+					const then: AwaitableThen<T> | undefined = Awaitable._thenIfThenable( f );
+					return then ? then( ()=>value ) : value;
+				},
+				(reason) => {
+					const f = onfinally();
+					const then: AwaitableThen<T,never> | undefined = Awaitable._thenIfThenable( f );
+					if( then ) { return then( ()=>{ throw reason; } ); } else { throw reason; }
+				},
+			);
+		} else {
+			r = this.then( onfinally, onfinally );
+		}
+		debug( `${this.label(_fn)}: Returning ${r}` );
+		return r;
 	}
 
 	/** Gets the label of this [[Awaitable]] (for logging and debugging) */
@@ -296,7 +325,7 @@ export class Awaitable<T> implements Promise<T> {
 					debug( `${this.label(_fn)}: resolve to self -- TypeError` );
 					this._reject( new TypeError( "Awaitable cannot be resolved to itself" ) );
 				} else {
-					let then: AwaitableThen | undefined;
+					let then: AwaitableThen<T,void,void> | undefined;
 					try {
 						then = Awaitable._thenIfThenable( value ); // only retrieve the then function once
 					} catch(e) {
@@ -331,7 +360,7 @@ export class Awaitable<T> implements Promise<T> {
 								debug( `${this.label(_fn)}/onrejected: Returning for Thenable #${thenNum} -- ${undefined}` );
 							};
 							try {
-								(then as AwaitableThen)( onfulfilled, onrejected ); // if this sync was started, then is an AwaitableThen
+								then!( onfulfilled, onrejected ); // if this sync was started, then is an AwaitableThen
 							} catch(e) {
 								debug( `${this.label(_fn)}: Thenable #${thenNum} threw -- %O`, e );
 								if( thenNum === this._thenCount ) {
