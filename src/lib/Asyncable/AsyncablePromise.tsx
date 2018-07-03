@@ -38,13 +38,13 @@ export class AsyncablePromise<T> implements Promise<T> {
 				debug( `${this.label(_fn)}/executor: Invoked` );
 				const fulfill: PromiseFulfiller<T> = ( value ) => {
 					debug( `${this.label()}/fulfiller: Invoked` );
-					if( value === this ) { ac.reject( new TypeError( "AsyncablePromise cannot be resolved to itself" ) ); }
-					else { ac.resolve( value ); }
+					if( value === this ) { ac.failure( new TypeError( "AsyncablePromise cannot be resolved to itself" ) ); }
+					else { ac.success( value ); }
 					debug( `${this.label()}/fulfiller: Finished` );
 				};
 				const reject:  PromiseRejecter<T> = ( reason ) => {
 					debug( `${this.label()}/rejecter: Invoked` );
-					ac.reject( reason );
+					ac.failure( reason );
 					debug( `${this.label()}/rejecter: Finished` );
 				};
 				init( fulfill, reject );

@@ -4,20 +4,16 @@ const debug: debugFactory.IDebugger = debugFactory( "Asyncable" );
 import { AsyncablePromise, PromiseExecutor } from "./AsyncablePromise";
 import { Deferred, DeferredAsyncablePromise } from "./DeferredAsyncablePromise";
 
-export type AsyncableResolver<T> = ( value:  T | PromiseLike<T>  ) => void;
-export type AsyncableRejecter<T> = ( reason: any                 ) => void; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 export type AsyncablePreparer<T> = ( ac: AsyncableController<T>, ) => ( AsyncablePrepared<T> | undefined | void );
 export type AsyncableStarter<T> = ( ac: AsyncableController<T>, ) => void;
 export type AsyncablePrepared<T> = { starter?: AsyncableStarter<T> }; // TODO: class with fromRaw-style constructor
-export type PromiseCallbackFulfilled<T,TResult1> = ( (  value: T   ) => TResult1 | PromiseLike<TResult1> ) | null | undefined;
-export type PromiseCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
-export enum AsyncableState { PENDING, FULFILLED, REJECTED }
-export type AsyncableCallbackFulfilled<T,TResult1> = ( (  value: T   ) => TResult1 | PromiseLike<TResult1> ) | null | undefined;
-export type AsyncableCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
-export type AsyncableCallbackFinally<  T         > = ( (        ) => T | PromiseLike<T> | undefined | void ) | null | undefined;
-type AsyncableThen<T, TResult1=T, TResult2=never> = ( onfulfilled?: AsyncableCallbackFulfilled<T,TResult1>, onrejected?:  AsyncableCallbackRejected< T,TResult2>, ) => Asyncable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
-type AsyncableChainFulfilled<T> = (  value: T   ) => void;
-type AsyncableChainRejected< T> = ( reason: any ) => void; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
+export enum AsyncableState { PREPARING, READY, RUNNING, SUCCEDED, FAILED, INVALID }
+export type AsyncableCallbackSuccess<T,TResult1> = ( ( result: T  ) => TResult1 | PromiseLike<TResult1> ) | null | undefined;
+export type AsyncableCallbackFailure<T,TResult2> = ( ( error: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
+export type AsyncableCallbackFinally<T         > = ( (        ) => T | PromiseLike<T> | undefined | void ) | null | undefined;
+type AsyncableThen<T, TResult1=T, TResult2=never> = ( onSuccess?: AsyncableCallbackSuccess<T,TResult1>, onFailure?:  AsyncableCallbackFailure< T,TResult2>, ) => Asyncable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
+type AsyncableChainSuccess<T> = ( result: T  ) => void;
+type AsyncableChainFailure<T> = ( error: any ) => void; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 
 /** An asynchronous-execution construct intended to be more general than Promises */
 export class Asyncable<T> {
@@ -25,13 +21,13 @@ export class Asyncable<T> {
 	/** Suffix for the ID of the next new [[Asyncable]] (incremented when an ID is allocated) */
 	private static _nextSuffix: number = 0;
 
-	/** Returns an [[Asyncable]] which immediately fulfills to [[value]] */
-	public static resolve<T>( value: T | PromiseLike<T> ) {
-		const label = `${this.name}.resolve`;
+	/** Returns an [[Asyncable]] which immediately succedes with [[result]] */
+	public static succeded<T>( result: T | PromiseLike<T> ) {
+		const label = `${this.name}.succeded`;
 		debug( `${label}: Invoked` );
 		const exec: AsyncablePreparer<T> = ( ac ) => { // tslint:disable-line:no-unused-variable // keep parameters from type
 			debug( `${label}/exec: Invoked` );
-			ac.resolve( value );
+			ac.success( result );
 			debug( `${label}/exec: Finished` );
 			return {};
 		};
@@ -40,13 +36,13 @@ export class Asyncable<T> {
 		return r;
 	}
 
-	/** Returns an [[Asyncable]] which immediately rejects to [[reason]] */
-	public static reject<T>( reason: any ) { // tslint:disable-line:no-any // any for compatibility
-		const label = `${this.name}.reject`;
+	/** Returns an [[Asyncable]] which immediately fails to [[error]] */
+	public static failed<T>( error: any ) { // tslint:disable-line:no-any // any for compatibility
+		const label = `${this.name}.failed`;
 		debug( `${label}: Invoked` );
 		const exec: AsyncablePreparer<T> = ( ac ) => { // tslint:disable-line:no-unused-variable // keep parameters from type
 			debug( `${label}/exec: Invoked` );
-			ac.reject( reason );
+			ac.failure( error );
 			debug( `${label}/exec: Finished` );
 			return {};
 		};
@@ -85,25 +81,25 @@ export class Asyncable<T> {
 	/** An ID for this particular [[Asyncable]] (for logging and debugging) */
 	private readonly _id: string = Asyncable._newID();
 	/** The current state of this [[Asyncable]] */
-	private _state: AsyncableState = AsyncableState.PENDING;
-	/** Result if and when this [[Asyncable]] is fulfilled */
-	private _value: T | undefined;
-	/** Reason if and when this [[Asyncable]] is rejected */
-	private _reason: any | undefined; // tslint:disable-line:no-any // any for compatibility
-	/** Number of thenables passed to [[_resolve]] */
+	private _state: AsyncableState = AsyncableState.PREPARING;
+	/** Result if and when this [[Asyncable]] succedes */
+	private _result: T | undefined;
+	/** Error if and when this [[Asyncable]] fails */
+	private _error: any | undefined; // tslint:disable-line:no-any // any for compatibility
+	/** Number of thenables passed to [[_success]] */
 	private _thenCount = 0;
-	/** Callbacks to be invoked of and when this [[Asyncable]] settles to fulfilled. */
-	private readonly _onFulfilled: AsyncableChainFulfilled<T>[] = [];
-	/** Callbacks to be invoked of and when this [[Asyncable]] settles to rejected. */
-	private readonly _onRejected: AsyncableChainRejected<T>[] = [];
+	/** Callbacks to be invoked if and when this [[Asyncable]] succedes. */
+	private readonly _onSuccess: AsyncableChainSuccess<T>[] = [];
+	/** Callbacks to be invoked of and when this [[Asyncable]] fails. */
+	private readonly _onFailure: AsyncableChainFailure<T>[] = [];
 
 	/** Not compatible with ES6 Promise constructor */
 	public constructor( preparer: AsyncablePreparer<T> ) {
 		const _fn = `constructor`;
 		debug( `${this.label(_fn)}: Invoked` );
 		const ac: AsyncableController<T> = new AsyncableController<T>(
-			( value ) => { this._resolve( value  ); },
-			( reason: any ): void => { this._reject(  reason ); }, // tslint:disable-line:no-any // TODO: reason type parameter (default string)
+			( result ) => { this._success( result  ); },
+			( error: any ): void => { this._failure( error ); }, // tslint:disable-line:no-any // TODO: error type parameter (default string)
 		);
 		debug( `${this.label(_fn)}: Invoking preparer` );
 		const prepared: AsyncablePrepared<T> = preparer( ac ) || {}; // TODO: run through constructor to ensure validity and warn of extra properties
@@ -116,115 +112,122 @@ export class Asyncable<T> {
 
 	/**
 	 * Attaches callbacks to be invoked when this [[Asyncable]] settles.
-	 * @returns An [[Asyncable]] representing this [[Asyncable]]'s fulfillment followed by [[onfulfilled]] OR this [[Asyncable]]'s failure followed by [[onrejected]],
+	 * @returns An [[Asyncable]] representing this [[Asyncable]]'s success followed by [[onSuccess]] OR this [[Asyncable]]'s failure followed by [[onFailure]],
 	 */
 	public then<TResult1 = T, TResult2 = never>(
-		onfulfilled?: AsyncableCallbackFulfilled<T,TResult1>,
-		onrejected?: AsyncableCallbackRejected<T,TResult2>,
+		onSuccess?: AsyncableCallbackSuccess<T,TResult1>,
+		onFailure?: AsyncableCallbackFailure<T,TResult2>,
 		// onprogress?: // TODO: progress indicators to go with yeildyness
 	): Asyncable< TResult1 | TResult2 > {
 		const _fn = `then`;
 		debug( `${this.label(_fn)}: Invoked in state ${AsyncableState[this._state]}` );
 		let r: Asyncable< TResult1 | TResult2 >;
 		switch( this._state ) {
-			case AsyncableState.PENDING:
+			case AsyncableState.READY:
+				throw new Error("UNIMPLEMENTED");
+			case AsyncableState.PREPARING:
+			case AsyncableState.RUNNING:
 				debug( `${this.label(_fn)}: deferred settling` );
 				const execp: AsyncablePreparer< TResult1 | TResult2 > = (ac) => {
 					debug( `${this.label(_fn)}/exec: Invoked` );
-					const onf: AsyncableChainFulfilled<T> = typeof onfulfilled === "function"
+					const onf: AsyncableChainSuccess<T> = typeof onSuccess === "function"
 						? (val) => {
-							debug( `${this.label(_fn)}/exec/onf: Invoked (invoking onfulfilled)` );
+							debug( `${this.label(_fn)}/exec/onf: Invoked (invoking onSuccess)` );
 							try {
-								const v: TResult1 | PromiseLike<TResult1> = onfulfilled( val );
-								ac.resolve( v );
+								const v: TResult1 | PromiseLike<TResult1> = onSuccess( val );
+								ac.success( v );
 							} catch(e) {
-								debug( `${this.label(_fn)}/exec/onf: onfulfilled threw -- %O`, e );
-								ac.reject( e );
+								debug( `${this.label(_fn)}/exec/onf: onSuccess threw -- %O`, e );
+								ac.failure( e );
 							}
 							debug( `${this.label(_fn)}/exec/onf: Finished` );
 						}
 						: (val) => {
-							debug( `${this.label(_fn)}/exec/onf: Invoked (no onfulfilled)` );
-							ac.resolve( val as {} as TResult1 ); // without onfulfilled this is a reinterpret cast
+							debug( `${this.label(_fn)}/exec/onf: Invoked (no onSuccess)` );
+							ac.success( val as {} as TResult1 ); // without onSuccess this is a reinterpret cast
 							debug( `${this.label(_fn)}/exec/onf: Finished` );
 						};
-					this._onFulfilled.push( onf );
-					const onr: AsyncableChainRejected<T> = typeof onrejected === "function"
-						? (reason) => {
-							debug( `${this.label(_fn)}/exec/onr: Invoked (invoking onrejected)` );
+					this._onSuccess.push( onf );
+					const onr: AsyncableChainFailure<T> = typeof onFailure === "function"
+						? (error) => {
+							debug( `${this.label(_fn)}/exec/onr: Invoked (invoking onFailure)` );
 							try {
-								const v: TResult2 | PromiseLike<TResult2> = onrejected( reason );
-								ac.resolve( v );
+								const v: TResult2 | PromiseLike<TResult2> = onFailure( error );
+								ac.success( v );
 							} catch(e) {
-								debug( `${this.label(_fn)}/exec/onr: onrejected threw -- %O`, e );
-								ac.reject( e );
+								debug( `${this.label(_fn)}/exec/onr: onFailure threw -- %O`, e );
+								ac.failure( e );
 							}
 							debug( `${this.label(_fn)}/exec/onr: Finished` );
 						}
-						: (reason) => {
-							debug( `${this.label(_fn)}/exec/onr: Invoked (no onrejected)` );
-							ac.reject( reason );
+						: (error) => {
+							debug( `${this.label(_fn)}/exec/onr: Invoked (no onFailure)` );
+							ac.failure( error );
 							debug( `${this.label(_fn)}/exec/onr: Finished` );
 						};
-					this._onRejected.push( onr );
+					this._onFailure.push( onr );
 					debug( `${this.label(_fn)}/exec: Finished` );
 				};
 				r = new Asyncable< TResult1 | TResult2 >( execp );
 				break;
-			case AsyncableState.FULFILLED:
-				debug( `${this.label(_fn)}: immediate fulfillment` );
-				const execf: AsyncablePreparer<TResult1> = typeof onfulfilled === "function"
+			case AsyncableState.SUCCEDED:
+				debug( `${this.label(_fn)}: immediate success` );
+				const execf: AsyncablePreparer<TResult1> = typeof onSuccess === "function"
 					? (ac) => {
-						debug( `${this.label(_fn)}/exec: Invoked (invoking onfulfilled) (BRANCH SYNC)` );
+						debug( `${this.label(_fn)}/exec: Invoked (invoking onSuccess) (BRANCH SYNC)` );
 						setTimeout( () => {
-							debug( `${this.label(_fn)}/exec: Invoked (invoking onfulfilled) (NEW SYNC)` );
+							debug( `${this.label(_fn)}/exec: Invoked (invoking onSuccess) (NEW SYNC)` );
 							try {
-								const value = onfulfilled( this._value as T ); // state FULFILLED means _value is set
-								ac.resolve( value );
+								const result = onSuccess( this._result as T ); // state SUCCEDED means _result is set
+								ac.success( result );
 							} catch(e) {
-								debug( `${this.label(_fn)}: onfulfilled threw -- %O`, e );
-								ac.reject( e );
+								debug( `${this.label(_fn)}: onSuccess threw -- %O`, e );
+								ac.failure( e );
 							}
-							debug( `${this.label(_fn)}/exec: Invoked (invoked onfulfilled) (END SYNC)` );
+							debug( `${this.label(_fn)}/exec: Invoked (invoked onSuccess) (END SYNC)` );
 						}, 0 );
 						debug( `${this.label(_fn)}/exec: Finished` );
 					}
 					: (ac) => { // tslint:disable-line:no-unused-variable // keep parameters from type
-						debug( `${this.label(_fn)}/exec: Invoked (no onfulfilled)` );
-						ac.resolve( this._value as {} as TResult1 ); // without onfulfilled this is a reinterpret cast
+						debug( `${this.label(_fn)}/exec: Invoked (no onSuccess)` );
+						ac.success( this._result as {} as TResult1 ); // without onSuccess this is a reinterpret cast
 						debug( `${this.label(_fn)}/exec: Finished` );
 					};
 				r = new Asyncable< TResult1 | TResult2 >( execf ); // TODO: why can't this just be TResult1?
 				break;
-			case AsyncableState.REJECTED:
-				debug( `${this.label(_fn)}: immediate rejection` );
-				const execr: AsyncablePreparer< TResult1 | TResult2 > = typeof onrejected === "function"
+			case AsyncableState.FAILED:
+				debug( `${this.label(_fn)}: immediate failure` );
+				const execr: AsyncablePreparer< TResult1 | TResult2 > = typeof onFailure === "function"
 					? (ac) => { // tslint:disable-line:no-unused-variable // keep parameters from type
-						debug( `${this.label(_fn)}/exec: Invoked (invoking onrejected) (BRANCH SYNC)` );
+						debug( `${this.label(_fn)}/exec: Invoked (invoking onFailure) (BRANCH SYNC)` );
 						setTimeout( () => {
-							debug( `${this.label(_fn)}/exec: Invoked (invoking onrejected) (NEW SYNC)` );
+							debug( `${this.label(_fn)}/exec: Invoked (invoking onFailure) (NEW SYNC)` );
 							try {
-								const value: TResult2 | PromiseLike<TResult2> = onrejected( this._reason );
-								debug( `${this.label(_fn)}: onrejected returned -- %O`, value );
-								ac.resolve( value );
+								const result: TResult2 | PromiseLike<TResult2> = onFailure( this._error );
+								debug( `${this.label(_fn)}: onFailure returned -- %O`, result );
+								ac.success( result );
 							} catch(e) {
-								debug( `${this.label(_fn)}: onrejected threw -- %O`, e );
-								ac.reject( e );
+								debug( `${this.label(_fn)}: onFailure threw -- %O`, e );
+								ac.failure( e );
 							}
-							debug( `${this.label(_fn)}/exec: Invoked (invoked onrejected) (END SYNC)` );
+							debug( `${this.label(_fn)}/exec: Invoked (invoked onFailure) (END SYNC)` );
 						}, 0 );
 						debug( `${this.label(_fn)}/exec: Finished` );
 					}
 					: (ac) => { // tslint:disable-line:no-unused-variable // keep parameters from type
-						debug( `${this.label(_fn)}/exec: Invoked (no onrejected)` );
-						ac.reject( this._reason );
+						debug( `${this.label(_fn)}/exec: Invoked (no onFailure)` );
+						ac.failure( this._error );
 						debug( `${this.label(_fn)}/exec: Finished` );
 					};
 				r = new Asyncable< TResult1 | TResult2 >( execr ); // TODO: why can't this just be TResult1?
 				break;
 			default:
-				debug( `${this.label(_fn)}: invalid state` );
-				throw new Error( `${this.label(_fn)}: BUG! invalid state` );
+				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
+				debug( err );
+				this._state = AsyncableState.INVALID; // reset to good state before rejecting with state error
+				this._failure( new Error( err ) );
+				r = this.then( onSuccess, onFailure );
+				break;
 		}
 		debug( `${this.label(_fn)}: Returning ${r}` );
 		return r;
@@ -232,12 +235,12 @@ export class Asyncable<T> {
 
 	/**
 	 * Attaches a callback to be invoked if this [[Asyncable]] settles to failure.
-	 * @returns An [[Asyncable]] representing this [[Asyncable]]'s fulfillment OR this [[Asyncable]]'s failure followed by [[onrejected]],
+	 * @returns An [[Asyncable]] representing this [[Asyncable]]'s success OR this [[Asyncable]]'s failure followed by [[onFailure]],
 	 */
 	public catch< TResult2 = never >(
-		onrejected?: AsyncableCallbackRejected< T, TResult2 >,
+		onFailure?: AsyncableCallbackFailure< T, TResult2 >,
 	): Asyncable< T | TResult2 > {
-		return this.then< T, TResult2 >( undefined, onrejected );
+		return this.then< T, TResult2 >( undefined, onFailure );
 	}
 
 	/**
@@ -252,15 +255,15 @@ export class Asyncable<T> {
 		let r: Asyncable<T>;
 		if( typeof onfinally === "function" ) {
 			r = this.then<T>(
-				(value ) => {
+				(result ) => {
 					const f = onfinally();
 					const then: AsyncableThen<T> | undefined = Asyncable._thenIfThenable( f );
-					return then ? then( ()=>value ) : value;
+					return then ? then( ()=>result ) : result;
 				},
-				(reason) => {
+				(error) => {
 					const f = onfinally();
 					const then: AsyncableThen<T,never> | undefined = Asyncable._thenIfThenable( f );
-					if( then ) { return then( ()=>{ throw reason; } ); } else { throw reason; }
+					if( then ) { return then( ()=>{ throw error; } ); } else { throw error; }
 				},
 			);
 		} else {
@@ -275,139 +278,151 @@ export class Asyncable<T> {
 		return `${this.constructor.name}<${this._id}:${AsyncableState[this._state].padEnd(9)}>${fn?"."+fn:""}`; // tslint:disable-line:no-magic-numbers // padding makes logs more readable
 	}
 
-	/** Attempt to fulfill this [[Asyncable]] */
-	private _resolve( value: T | PromiseLike<T> ): void {
-		const _fn = `_resolve`;
+	/** Attempt to set success for this [[Asyncable]] */
+	private _success( result: T | PromiseLike<T> ): void {
+		const _fn = `_success`;
 		debug( `${this.label(_fn)}: Invoked` );
 		switch( this._state ) {
-			case AsyncableState.PENDING:
-				debug( `${this.label(_fn)}: still pending` );
-				if( value === this ) {
-					debug( `${this.label(_fn)}: resolve to self -- TypeError` );
-					this._reject( new TypeError( "Asyncable cannot be resolved to itself" ) );
+			case AsyncableState.READY:
+				throw new Error("UNIMPLEMENTED");
+			case AsyncableState.PREPARING:
+			case AsyncableState.RUNNING:
+				debug( `${this.label(_fn)}: state = ${AsyncableState[this._state]}` );
+				if( result === this ) {
+					debug( `${this.label(_fn)}: success with self -- TypeError` );
+					this._failure( new TypeError( "Asyncable cannot succeed with itself as its result" ) );
 				} else {
 					let then: AsyncableThen<T,void,void> | undefined;
 					try {
-						then = Asyncable._thenIfThenable( value ); // only retrieve the then function once
+						then = Asyncable._thenIfThenable( result ); // only retrieve the then function once
 					} catch(e) {
-						debug( `${this.label(_fn)}: error thrown from checking for thenability of value -- %O`, e );
-						this._reject( e );
+						debug( `${this.label(_fn)}: error thrown from checking for thenability of result -- %O`, e );
+						this._failure( e );
 					}
 					if( then !== undefined ) {
 						this._thenCount += 1;
 						const thenNum = this._thenCount;
-						debug( `${this.label(_fn)}: value is Thenable #${thenNum} -- (${typeof value})`, value, "--", then ); // tslint:disable-line:no-unbound-method // unbound for debugging
+						debug( `${this.label(_fn)}: result is Thenable #${thenNum} -- (${typeof result})`, result, "--", then ); // tslint:disable-line:no-unbound-method // unbound for debugging
 						debug( `${this.label(_fn)}: chain settling to Thenable #${thenNum} (BRANCH SYNC)` );
 						setTimeout( () => {
 							debug( `${this.label(_fn)}: chain settling to Thenable #${thenNum} (NEW SYNC)` );
-							const onfulfilled: AsyncableCallbackFulfilled<T,void> = ( val: T ) => {
-								debug( `${this.label(_fn)}/onfulfilled: Invoked for Thenable #${thenNum}` );
+							const onSuccess: AsyncableCallbackSuccess<T,void> = ( val: T ) => {
+								debug( `${this.label(_fn)}/onSuccess: Invoked for Thenable #${thenNum}` );
 								if( thenNum === this._thenCount ) {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} is current, resolving` );
-									this._resolve( val );
+									debug( `${this.label(_fn)}/onSuccess: Thenable #${thenNum} is current, resolving` );
+									this._success( val );
 								} else {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring value %O`, val );
+									debug( `${this.label(_fn)}/onSuccess: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring result %O`, val );
 								}
-								debug( `${this.label(_fn)}/onfulfilled: Returning for Thenable #${thenNum} -- ${undefined}` );
+								debug( `${this.label(_fn)}/onSuccess: Returning for Thenable #${thenNum} -- ${undefined}` );
 							};
-							const onrejected: AsyncableCallbackRejected<T,void> = ( rsn: any ) => { // tslint:disable-line:no-any // any for compatibility
-								debug( `${this.label(_fn)}/onrejected: Invoked for Thenable #${thenNum}` );
+							const onFailure: AsyncableCallbackFailure<T,void> = ( error: any ) => { // tslint:disable-line:no-any // any for compatibility
+								debug( `${this.label(_fn)}/onFailure: Invoked for Thenable #${thenNum}` );
 								if( thenNum === this._thenCount ) {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} is current, rejecting` );
-									this._reject( rsn );
+									debug( `${this.label(_fn)}/onFailure: Thenable #${thenNum} is current, failing` );
+									this._failure( error );
 								} else {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring reason %O`, rsn );
+									debug( `${this.label(_fn)}/onFailure: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring error %O`, error );
 								}
-								debug( `${this.label(_fn)}/onrejected: Returning for Thenable #${thenNum} -- ${undefined}` );
+								debug( `${this.label(_fn)}/onFailure: Returning for Thenable #${thenNum} -- ${undefined}` );
 							};
 							try {
-								then!( onfulfilled, onrejected ); // if this sync was started, then is an AsyncableThen
+								then!( onSuccess, onFailure ); // if this sync was started, then is an AsyncableThen
 							} catch(e) {
 								debug( `${this.label(_fn)}: Thenable #${thenNum} threw -- %O`, e );
 								if( thenNum === this._thenCount ) {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} is current, rejecting` );
-									this._reject( e );
+									debug( `${this.label(_fn)}/onSuccess: Thenable #${thenNum} is current, failing` );
+									this._failure( e );
 								} else {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring reason %O`, e );
+									debug( `${this.label(_fn)}/onSuccess: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring error %O`, e );
 								}
 							}
 							debug( `${this.label(_fn)}: chained settling to Thenable #${thenNum} (END SYNC)` );
 						}, 0 );
 					} else {
-						debug( `${this.label(_fn)}: settling to fulfilled -- `, value );
-						this._state = AsyncableState.FULFILLED;
-						this._value = value as T; // if value isn't thenable, it's a T
-						debug( `${this.label(_fn)}: ${this._onFulfilled.length} fulfilled callbacks to invoke` );
+						debug( `${this.label(_fn)}: succeded -- `, result );
+						this._state = AsyncableState.SUCCEDED;
+						this._result = result as T; // if result isn't thenable, it's a T
+						debug( `${this.label(_fn)}: ${this._onSuccess.length} onSuccess callbacks to invoke` );
 						let h = 0;
-						while( this._onFulfilled.length > 0 ) {
+						while( this._onSuccess.length > 0 ) {
 							h += 1;
 							const i = h; // preserve value in closure
-							const onFulfilled = this._onFulfilled.shift() as AsyncableChainFulfilled<T>;
-							debug( `${this.label(_fn)}: invoking fulfilled callback #${i} (BRANCH SYNC)` );
+							const onSuccess = this._onSuccess.shift() as AsyncableChainSuccess<T>;
+							debug( `${this.label(_fn)}: invoking onSuccess callback #${i} (BRANCH SYNC)` );
 							setTimeout( () => {
-								debug( `${this.label(_fn)}: invoking fulfilled callback #${i} (NEW SYNC)` );
+								debug( `${this.label(_fn)}: invoking onSuccess callback #${i} (NEW SYNC)` );
 								try {
-									onFulfilled( this._value as T );
+									onSuccess( this._result as T );
 								} catch(e) {
-									debug( `${this.label(_fn)}: fulfilled callback #${i} threw -- %O`, e );
+									debug( `${this.label(_fn)}: onSuccess callback #${i} threw -- %O`, e );
 								}
-								debug( `${this.label(_fn)}: done with fulfilled callback #${i} (END SYNC)` );
+								debug( `${this.label(_fn)}: done with onSuccess callback #${i} (END SYNC)` );
 							}, 0 );
 						}
-						debug( `${this.label(_fn)}: ${this._onFulfilled.length} fulfilled callbacks remaining` );
+						debug( `${this.label(_fn)}: ${this._onSuccess.length} onSuccess callbacks remaining` );
 					}
 				}
 				break;
-			case AsyncableState.FULFILLED:
-				debug( `${this.label(_fn)}: already fulfilled` );
+			case AsyncableState.SUCCEDED:
+				debug( `${this.label(_fn)}: already succeded` );
 				break;
-			case AsyncableState.REJECTED:
-				debug( `${this.label(_fn)}: already rejected` );
+			case AsyncableState.FAILED:
+				debug( `${this.label(_fn)}: already failed` );
 				break;
 			default:
-				debug( `${this.label(_fn)}: invalid state ${this._state}` );
-				throw new Error( `UNIMPLEMENTED` );
+				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
+				debug( err );
+				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
+				this._failure( new Error( err ) );
+				break;
 		}
 		debug( `${this.label(_fn)}: Finished` );
 	}
 
-	/** Attempt to reject this [[Asyncable]] */
-	private _reject( reason: any ): void { // tslint:disable-line:no-any // any for compatibility
-		const _fn = `_reject`;
+	/** Attempt to set failure for this [[Asyncable]] */
+	private _failure( error: any ): void { // tslint:disable-line:no-any // any for compatibility
+		const _fn = `_failure`;
 		debug( `${this.label(_fn)}: Invoked` );
 		switch( this._state ) {
-			case AsyncableState.PENDING:
-				debug( `${this.label(_fn)}: settling to rejected -- `, reason );
-				this._state = AsyncableState.REJECTED;
-				this._reason = reason;
-				debug( `${this.label(_fn)}: ${this._onRejected.length} rejected callbacks to invoke` );
+			case AsyncableState.READY:
+				throw new Error("UNIMPLEMENTED");
+			case AsyncableState.PREPARING:
+			case AsyncableState.RUNNING:
+				debug( `${this.label(_fn)}: failure with error -- `, error );
+				this._state = AsyncableState.FAILED;
+				this._error = error;
+				debug( `${this.label(_fn)}: ${this._onFailure.length} onFailure callbacks to invoke` );
 				let h = 0;
-				while( this._onRejected.length > 0 ) {
+				while( this._onFailure.length > 0 ) {
 					h += 1;
 					const i = h; // preserve value in closure
-					const onRejected = this._onRejected.shift() as AsyncableChainRejected<T>;
-					debug( `${this.label(_fn)}: invoking rejected callback #${i} (BRANCH SYNC)` );
+					const onFailure = this._onFailure.shift() as AsyncableChainFailure<T>;
+					debug( `${this.label(_fn)}: invoking onFailure callback #${i} (BRANCH SYNC)` );
 					setTimeout( () => {
-						debug( `${this.label(_fn)}: invoking rejected callback #${i} (NEW SYNC)` );
+						debug( `${this.label(_fn)}: invoking onFailure callback #${i} (NEW SYNC)` );
 						try {
-							onRejected( this._reason );
+							onFailure( this._error );
 						} catch(e) {
-							debug( `${this.label(_fn)}: rejected callback #${i} threw -- %O`, e );
+							debug( `${this.label(_fn)}: onFailure callback #${i} threw -- %O`, e );
 						}
-						debug( `${this.label(_fn)}: done with rejected callback #${i} (END SYNC)` );
+						debug( `${this.label(_fn)}: done with onFailure callback #${i} (END SYNC)` );
 					}, 0 );
-					debug( `${this.label(_fn)}: ${this._onRejected.length} rejected callbacks remaining` );
+					debug( `${this.label(_fn)}: ${this._onFailure.length} onFailure callbacks remaining` );
 				}
 				break;
-			case AsyncableState.FULFILLED:
-				debug( `${this.label(_fn)}: already fulfilled` );
+			case AsyncableState.SUCCEDED:
+				debug( `${this.label(_fn)}: already succeded` );
 				break;
-			case AsyncableState.REJECTED:
-				debug( `${this.label(_fn)}: already rejected` );
+			case AsyncableState.FAILED:
+				debug( `${this.label(_fn)}: already failed` );
 				break;
 			default:
-				debug( `${this.label(_fn)}: invalid state ${this._state}` );
-				throw new Error( `UNIMPLEMENTED` );
+				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
+				debug( err );
+				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
+				this._failure( new Error( err ) );
+				break;
 		}
 		debug( `${this.label(_fn)}: Finished` );
 	}
@@ -417,8 +432,8 @@ export class Asyncable<T> {
 /** Controller used within the asynchronous task represented by an Asyncable */
 export class AsyncableController<T> {
 	public constructor(
-		public readonly resolve: AsyncableResolver<T>,
-		public readonly reject:  AsyncableRejecter<T>,
+		public readonly success: ( result:  T | PromiseLike<T> ) => void,
+		public readonly failure:  ( error: any                 ) => void, // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 	) {
 	}
 }

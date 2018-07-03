@@ -258,8 +258,12 @@ export class Awaitable<T> implements Promise<T> {
 				r = new Awaitable< TResult1 | TResult2 >( execr ); // TODO: why can't this just be TResult1?
 				break;
 			default:
-				debug( `${this.label(_fn)}: invalid state` );
-				throw new Error( `${this.label(_fn)}: BUG! invalid state` );
+				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AwaitableState[this._state]}`;
+				debug( err );
+				this._state = AwaitableState.PENDING; // reset to good state before rejecting with state error
+				this._reject( new Error( err ) );
+				r = this.then( onfulfilled, onrejected );
+				break;
 		}
 		debug( `${this.label(_fn)}: Returning ${r}` );
 		return r;
@@ -352,10 +356,10 @@ export class Awaitable<T> implements Promise<T> {
 							const onrejected: AwaitableCallbackRejected<T,void> = ( rsn: any ) => { // tslint:disable-line:no-any // any for compatibility
 								debug( `${this.label(_fn)}/onrejected: Invoked for Thenable #${thenNum}` );
 								if( thenNum === this._thenCount ) {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} is current, rejecting` );
+									debug( `${this.label(_fn)}/onrejected: Thenable #${thenNum} is current, rejecting` );
 									this._reject( rsn );
 								} else {
-									debug( `${this.label(_fn)}/onfulfilled: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring reason %O`, rsn );
+									debug( `${this.label(_fn)}/onrejected: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring reason %O`, rsn );
 								}
 								debug( `${this.label(_fn)}/onrejected: Returning for Thenable #${thenNum} -- ${undefined}` );
 							};
@@ -404,8 +408,11 @@ export class Awaitable<T> implements Promise<T> {
 				debug( `${this.label(_fn)}: already rejected` );
 				break;
 			default:
-				debug( `${this.label(_fn)}: invalid state ${this._state}` );
-				throw new Error( `UNIMPLEMENTED` );
+				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AwaitableState[this._state]}`;
+				debug( err );
+				this._state = AwaitableState.PENDING; // reset to good state before rejecting with state error
+				this._reject( new Error( err ) );
+				break;
 		}
 		debug( `${this.label(_fn)}: Returning ${undefined}` );
 	}
@@ -445,8 +452,11 @@ export class Awaitable<T> implements Promise<T> {
 				debug( `${this.label(_fn)}: already rejected` );
 				break;
 			default:
-				debug( `${this.label(_fn)}: invalid state ${this._state}` );
-				throw new Error( `UNIMPLEMENTED` );
+				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AwaitableState[this._state]}`;
+				debug( err );
+				this._state = AwaitableState.PENDING; // reset to good state before rejecting with state error
+				this._reject( new Error( err ) );
+				break;
 		}
 		debug( `${this.label(_fn)}: Returning ${undefined}` );
 	}
