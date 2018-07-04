@@ -86,11 +86,13 @@ export class Asyncable<T> {
 	private _result: T | undefined;
 	/** Error if and when this [[Asyncable]] fails */
 	private _error: any | undefined; // tslint:disable-line:no-any // any for compatibility
+	/** Function to transition from READY to RUNNING */
+	private _start: () => this;
 	/** Number of thenables passed to [[_success]] */
 	private _thenCount = 0;
 	/** Callbacks to be invoked if and when this [[Asyncable]] succedes. */
 	private readonly _onSuccess: AsyncableChainSuccess<T>[] = [];
-	/** Callbacks to be invoked of and when this [[Asyncable]] fails. */
+	/** Callbacks to be invoked if and when this [[Asyncable]] fails. */
 	private readonly _onFailure: AsyncableChainFailure<T>[] = [];
 
 	/** Not compatible with ES6 Promise constructor */
@@ -103,9 +105,30 @@ export class Asyncable<T> {
 		);
 		debug( `${this.label(_fn)}: Invoking preparer` );
 		const prepared: AsyncablePrepared<T> = preparer( ac ) || {}; // TODO: run through constructor to ensure validity and warn of extra properties
-		if( prepared.starter ) { throw new Error( this.label(_fn) + ": UNIMPLEMENTED - Asyncable that needs a separate start step" ); }
-		debug( `${this.label(_fn)}: Finished` );
+		debug( `${this.label(_fn)}: Preparer returned in state ${AsyncableState[this._state]}` );
+		if( this._state === AsyncableState.PREPARING ) {
+			if( prepared.starter ) {
+				this._state = AsyncableState.READY;
+				this._start = () => {
+					if( this._state === AsyncableState.READY ) {
+						prepared.starter!( ac ); // TODO: exception handling
+						this._state = AsyncableState.RUNNING;
+						this._start = () => this;
+					}
+					return this;
+				};
+			} else {
+				this._state = AsyncableState.RUNNING;
+				this._start = () => this;
+			}
+		} else {
+			this._start = () => this;
+		}
+		debug( `${this.label(_fn)}: Finished in state ${AsyncableState[this._state]}` );
 	}
+
+	/** Start an Asyncable which is READY */
+	public get start(): () => this { return () => this._start(); }
 
 	/** [object Asyncable<${ID}:${STATE}>] */
 	public toString() { return `[object ${this.label()}]`; }
@@ -124,7 +147,6 @@ export class Asyncable<T> {
 		let r: Asyncable< TResult1 | TResult2 >;
 		switch( this._state ) {
 			case AsyncableState.READY:
-				throw new Error("UNIMPLEMENTED");
 			case AsyncableState.PREPARING:
 			case AsyncableState.RUNNING:
 				debug( `${this.label(_fn)}: deferred settling` );
@@ -284,7 +306,11 @@ export class Asyncable<T> {
 		debug( `${this.label(_fn)}: Invoked` );
 		switch( this._state ) {
 			case AsyncableState.READY:
-				throw new Error("UNIMPLEMENTED");
+				const errReady: string = `${this.label(_fn)}: Succeded while not running (in state ${AsyncableState[this._state]})`;
+				debug( errReady );
+				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
+				this._failure( new Error( errReady ) );
+				break;
 			case AsyncableState.PREPARING:
 			case AsyncableState.RUNNING:
 				debug( `${this.label(_fn)}: state = ${AsyncableState[this._state]}` );
@@ -371,10 +397,10 @@ export class Asyncable<T> {
 				debug( `${this.label(_fn)}: already failed` );
 				break;
 			default:
-				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
-				debug( err );
+				const errDefault: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
+				debug( errDefault );
 				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
-				this._failure( new Error( err ) );
+				this._failure( new Error( errDefault ) );
 				break;
 		}
 		debug( `${this.label(_fn)}: Finished` );
@@ -386,7 +412,11 @@ export class Asyncable<T> {
 		debug( `${this.label(_fn)}: Invoked` );
 		switch( this._state ) {
 			case AsyncableState.READY:
-				throw new Error("UNIMPLEMENTED");
+				const errReady: string = `${this.label(_fn)}: Failed while not running (in state ${AsyncableState[this._state]})`;
+				debug( errReady );
+				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
+				this._failure( new Error( errReady ) );
+				break;
 			case AsyncableState.PREPARING:
 			case AsyncableState.RUNNING:
 				debug( `${this.label(_fn)}: failure with error -- `, error );
@@ -418,10 +448,10 @@ export class Asyncable<T> {
 				debug( `${this.label(_fn)}: already failed` );
 				break;
 			default:
-				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
-				debug( err );
+				const errDefault: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
+				debug( errDefault );
 				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
-				this._failure( new Error( err ) );
+				this._failure( new Error( errDefault ) );
 				break;
 		}
 		debug( `${this.label(_fn)}: Finished` );
