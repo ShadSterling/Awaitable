@@ -20,10 +20,18 @@ export interface Thenable<T=any> { // tslint:disable-line:interface-name no-any 
 export class Helpers { // tslint:disable-line:no-unnecessary-class
 	/** MacroTasks run from a FIFO queue, when queue is empty program ends */
 	public static asyncMacro( task: ()=>void ) {
-		setTimeout( task, 0 ); // TODO: args; take <T> as argtype?
+		// const preserve = new Error( "-=-=-=-=-=-=- MacroTask Branchpoint -=-=-=-=-=-=-" );
+		setTimeout( () => {
+			try {
+				task();
+			} catch(e) {
+				// e = this.errorChain( e, preserve ) // TODO: update errorChain to combine stack traces
+				throw e;
+			}
+		} , 0 ); // TODO: args; take <T> as argtype?
 	}
 	/** MicroTasks run from a FIFO queue, when queue is empty next MacroTask runs */
-	public static asyncMicro( task: ()=>void ) {
+	public static asyncMicro( task: ()=>void ) { // TODO: preserve stack traces
 		Promise.resolve().then( task ); // TODO: args; take <T> as argtype?
 	}
 	/** Insert the elements of one array into another array */

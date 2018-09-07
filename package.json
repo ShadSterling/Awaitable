@@ -1,7 +1,7 @@
 {
   "name": "shadlib",
   "homepage": "http://example.com/",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "My personal idiomatic helper library",
   "author": "Shad Sterling <me@shadsterling.com>",
   "license": "AGPL-3.0",
