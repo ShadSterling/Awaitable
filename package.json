@@ -1,13 +1,12 @@
 {
-  "name": "shadlib",
+  "name": "awaitable",
   "homepage": "http://example.com/",
-  "version": "0.1.0",
-  "description": "My personal idiomatic helper library",
+  "version": "0.5.0",
+  "description": "An approximately minimal Promise implementation in with copious debug output",
   "author": "Shad Sterling <me@shadsterling.com>",
   "license": "AGPL-3.0",
-  "private": true,
   "keywords": [],
-  "main": "build/lib/index.js",
+  "main": "build/lib/Awaitable.js",
   "scripts": {
     "deps": "npm i",
     "redeps": " npm run reset && npm run deps",
@@ -38,10 +37,10 @@
     "redoc": "    npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc",
     "open": "open reports/mochawesome/mochawesome.html && open coverage/index.html && open doc/index.html",
     "docopen": "                                                                                                                      npm run doc && npm run open",
-    "copen": "                                                                                                       npm run cover && npm run doc && npm run open",
     "topen": "                                                                                       npm run test && npm run cover && npm run doc && npm run open",
     "lopen": "                                                                       npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "bopen": "                                     npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
+    "copen": "                    npm run clean && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "dopen": "                     npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "reopen": "   npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "start": "echo nothing to start - this is a library",
@@ -50,16 +49,11 @@
     "reset": "npm run clean && rm -rf node_modules"
   },
   "dependencies": {
-    "caller": "1.0.X",
-    "debug": "3.1.X",
-    "fs-extra": "5.0.X",
-    "moment": "2.21.X",
-    "proper-lockfile": "3.0.X"
+    "debug": "3.1.X"
   },
   "devDependencies": {
     "@types/chai": "4.1.X",
     "@types/debug": "0.0.30",
-    "@types/fs-extra": "5.0.X",
     "@types/mocha": "5.2.X",
     "@types/node": "9.6.X",
     "@types/source-map-support": "0.4.X",
@@ -73,8 +67,8 @@
     "nyc": "11.7.X",
     "promises-aplus-tests": "2.1.X",
     "source-map-support": "0.5.X",
-    "tslint": "5.9.X",
+    "tslint": "5.11.X",
     "typedoc": "0.11.X",
-    "typescript": "2.8.X"
+    "typescript": "3.0.X"
   }
 }

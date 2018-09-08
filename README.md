@@ -1,5 +1,5 @@
-# Shadlib
+# Awaitable
 
-This was supposed to be Shad's "personal quirks" idiomatic helper library, but it's currently a pile of experimental code that might eventually become useful helpers.
+An approximately minimal [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises) implementation in [Typescript](https://www.typescriptlang.org/) with copious [debug](https://www.npmjs.com/package/debug) output
 
-Nothing in this repository should be considered to be in a usable or dependable state.  I'd like to split out useful subsets of the functionality into modules that you can depend on in the usual way; if there's something specific you'd like to have available, open an issue to request a spinoff.
+I wrote this as an aside to creating a way to manage long-running tasks, which I thought might as well conform to the [Promise Spec](https://promisesaplus.com/).  After attempting to modify that code to pass the [test suite](https://github.com/promises-aplus/promises-tests) I decided it would be better to work the other way around: create a confirmant promise implementation from scratch, then add the other features to it.  This is that promise implementation, made available as a separate library prior to adding any additional features.
