@@ -1,6 +1,7 @@
 {
   "name": "awaitable",
   "homepage": "http://example.com/",
+  "repository": "https://github.com/ShadSterling/Awaitable",
   "version": "0.5.0",
   "description": "An approximately minimal Promise implementation in with copious debug output",
   "author": "Shad Sterling <me@shadsterling.com>",
@@ -8,7 +9,7 @@
   "keywords": [],
   "main": "build/lib/Awaitable.js",
   "scripts": {
-    "deps": "npm i",
+    "deps": "./timeout.sh 100 npm i",
     "redeps": " npm run reset && npm run deps",
     "audit": "auditjs -l error -w audit-whitelist.json --prod",
     "reaudit": "   npm run reset && npm run deps && npm run audit",
@@ -60,7 +61,7 @@
     "auditjs": "2.4.X",
     "chai": "4.1.X",
     "mocha": "5.1.X",
-    "mocha-multi": "github:shadsterling/mocha-multi#patch-1",
+    "mocha-multi": "github:glenjamin/mocha-multi#v1.1.0",
     "mocha-sonar-reporter": "0.1.X",
     "mochawesome": "3.0.X",
     "npm": "5.8.X",
