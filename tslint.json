@@ -121,7 +121,6 @@
         "no-unsafe-any": true, // TODO: exceptions for e.g. isAny && isAny.prop
         "no-unsafe-finally": true,
         "no-unused-expression": [ true, "allow-fast-null-checks" ],
-        "no-unused-variable": [ true, "check-parameters" ], // TODO: check-parameters exception for anonymous functions conforming to type declarations
         "no-use-before-declare": false, // TODO: option to apply only within method/function scope
         "no-var-keyword": true,
         "no-var-requires": true,

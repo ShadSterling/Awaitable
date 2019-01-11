@@ -53,6 +53,10 @@ export class DeferredAwaitable<T> implements DeferredWithFinally<T> {
 		debug( `${this.label()}/rejectPromise: Returning -- ${undefined}` );
 	}
 
+	// TODO: add passthroughs for then. catch, finally
+
+	// TODO: debug methods: make state invalid, make _reject throw
+
 	/** [object DeferredAwaitable<${ID}:${STATE}>] */
 	public toString(): string { return `[object ${this.label()}]`; }
 
@@ -315,7 +319,7 @@ export class Awaitable<T> implements Promise<T> {
 
 	/** Gets the label of this [[Awaitable]] (for logging and debugging) */
 	public label( fn?: string ) {
-		return `${this.constructor.name}<${this._id}:${AwaitableState[this._state].padEnd(9)}>${fn?"."+fn:""}`; // tslint:disable-line:no-magic-numbers // padding makes logs more readable
+		return `${this.constructor.name}<${this._id}:${(""+AwaitableState[this._state]).padEnd(9)}>${fn?"."+fn:""}`; // tslint:disable-line:no-magic-numbers // padding makes logs more readable
 	}
 
 	/** Attempt to fulfill this [[Awaitable]] */

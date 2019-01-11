@@ -24,8 +24,7 @@
     "retest:one": "npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test:one",
     "ctest:one": "                 npm run clean && npm run audit && npm run build && npm run lint && npm run test:one",
     "btest:one": "                                  npm run audit && npm run build && npm run lint && npm run test:one",
-    "test:old": "mocha --reporter mocha-multi --reporter-options mocha-multi=mocha-multi.json --recursive build/test/**/*.spec.js",
-    "test": "    : Run tests and generate coverage reports                                      ; echo \"Running Tests\" && ./timeout.sh 300 nyc  --reporter html --reporter json mocha --cache --all --include-all-sources --reporter mocha-multi --reporter-options mocha-multi=mocha-multi.json build/test -x build/test && echo \"Tests Complete\"",
+    "test": "    : Run tests and generate coverage reports                                      ; echo \"Running Tests\" && ./timeout.sh 300 nyc --reporter html --reporter json mocha --cache --all --include-all-sources --reporter mocha-multi --reporter-options mocha-multi=mocha-multi.json build/test -x build/test && echo \"Tests Complete\"",
     "ltest": "                                                      npm run lint && npm run test",
     "btest": "                                     npm run audit && npm run build && npm run lint && npm run test",
     "dtest": "                     npm run deps && npm run audit && npm run build && npm run lint && npm run test",
@@ -44,6 +43,9 @@
     "copen": "                    npm run clean && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "dopen": "                     npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "reopen": "   npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
+    "ready": "nyc check-coverage --branches 100 --functions 100 --lines 100 --statements 100",
+    "bready": "                                    npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run ready",
+    "reready": "  npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run ready",
     "start": "echo nothing to start - this is a library",
     "restart": "npm run rebuild && npm run start",
     "clean": "rm -rf build reports .nyc_output coverage doc",
@@ -71,5 +73,9 @@
     "tslint": "5.11.X",
     "typedoc": "0.11.X",
     "typescript": "3.0.X"
+  },
+  "nyc": {
+    "include": [ "build/lib/**/*.js" ],
+    "exclude": [ "build/test/**/*.spec.js", "build/testlib/**/*.js" ]
   }
 }
