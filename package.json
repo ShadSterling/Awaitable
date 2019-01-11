@@ -2,7 +2,7 @@
   "name": "awaitable",
   "homepage": "http://example.com/",
   "repository": "https://github.com/ShadSterling/Awaitable",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "An approximately minimal Promise implementation in with copious debug output",
   "author": "Shad Sterling <me@shadsterling.com>",
   "license": "AGPL-3.0",
@@ -65,7 +65,7 @@
     "mocha": "5.1.X",
     "mocha-multi": "github:glenjamin/mocha-multi#v1.1.0",
     "mocha-sonar-reporter": "0.1.X",
-    "mochawesome": "3.0.X",
+    "mochawesome": "3.1.X",
     "npm": "6.5.X",
     "nyc": "11.7.X",
     "promises-aplus-tests": "2.1.X",
@@ -75,7 +75,12 @@
     "typescript": "3.0.X"
   },
   "nyc": {
-    "include": [ "build/lib/**/*.js" ],
-    "exclude": [ "build/test/**/*.spec.js", "build/testlib/**/*.js" ]
+    "include": [
+      "build/lib/**/*.js"
+    ],
+    "exclude": [
+      "build/test/**/*.spec.js",
+      "build/testlib/**/*.js"
+    ]
   }
 }
