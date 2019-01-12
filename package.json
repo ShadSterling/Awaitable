@@ -1,6 +1,6 @@
 {
-  "name": "awaitable",
-  "homepage": "http://example.com/",
+  "name": "@shadlib/awaitable",
+  "homepage": "https://github.com/ShadSterling/Awaitable",
   "repository": "https://github.com/ShadSterling/Awaitable",
   "version": "0.5.2",
   "description": "An approximately minimal Promise implementation in with copious debug output",
