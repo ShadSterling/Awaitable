@@ -1,3 +1,7 @@
+// Type definitions for Promises/A+ Compliance Test Suite - https://github.com/promises-aplus/promises-tests
+// Definitions by Shad Sterling - https://github.com/shadsterling
+
+// UPSTREAM: https://github.com/promises-aplus/promises-tests/pull/92
 
 declare module "promises-aplus-tests" {
 
@@ -23,6 +27,3 @@ declare module "promises-aplus-tests" {
 	}
 
 }
-
-// TODO: finish a template from https://www.typescriptlang.org/docs/handbook/declaration-files/templates.html
-// TODO: submit to https://github.com/promises-aplus/promises-tests

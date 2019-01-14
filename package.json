@@ -44,6 +44,7 @@
     "dopen": "                     npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "reopen": "   npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run open",
     "ready": "nyc check-coverage --branches 100 --functions 100 --lines 100 --statements 100",
+    "tready": "                                                                                      npm run test && npm run cover && npm run doc && npm run ready",
     "bready": "                                    npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run ready",
     "reready": "  npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run ready",
     "start": "echo nothing to start - this is a library",
