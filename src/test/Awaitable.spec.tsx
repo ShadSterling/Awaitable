@@ -79,11 +79,11 @@ describe( "Awaitable", () => {
 	describe( "#_resolve", function () {
 
 		it( "When called on a pending Awaitable, When given a non-thenable value, When an onFulfilled has been attached, Catches any error thrown by an onFulfilled", function () {
-			const originalValue = { reason: "ORIGINAL VALUE" };
+			const originalValue = { value: "ORIGINAL VALUE" };
 			const fromReject = new Error( "THROWN FROM REJECT" );
 			const fromOnFulfilled = new Error( "THROWN FROM OnFULFILLED" );
 			const subject1 = new DeferredAwaitable<typeof originalValue>();
-			const subject2 = subject1.promise.then(
+			const subject2 = subject1.then(
 				( value ) => { throw fromOnFulfilled; },
 				( reason ) => { throw new Error( `TEST FAILED - Rejected when it should have fulfilled - (${typeof reason}) ${reason}` ); },
 			);
@@ -93,7 +93,7 @@ describe( "Awaitable", () => {
 			const fulfill3: AwaitableCallbackFulfilled<typeof originalValue,void> = ( value ) => { f3Called++; throw new Error( `TEST FAILED - Fulfilled when it should remain pending - (${typeof value}) ${value}` ); };
 			const reject3: AwaitableCallbackRejected<typeof originalValue,void> = ( reason ) => { r3Called++; throw new Error( `TEST FAILED - Rejected when it should remain pending - (${typeof reason}) ${reason}` ); };
 			const subject3 = subject2.then( fulfill3, reject3 );
-			const subject4 = subject1.promise.then(
+			const subject4 = subject1.then(
 				( value ) => { expect( value ).to.equal( originalValue ); expect( f3Called ).to.equal( 0 ); expect( r3Called ).to.equal( 0 ); },
 				( reason ) => { throw new Error( `TEST FAILED - Rejected when it should have fulfilled - (${typeof reason}) ${reason}` ); },
 			);
@@ -104,7 +104,7 @@ describe( "Awaitable", () => {
 		it( "When called on an Awaitable in an invalid state, Rejects with Error", function () {
 			const originalValue = { reason: "ORIGINAL VALUE" };
 			const subject1 = new DeferredAwaitable<typeof originalValue>();
-			const subject2 = subject1.promise.then(
+			const subject2 = subject1.then(
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
 				( reason ) => {
 					expect( reason ).to.be.an( "Error" );
@@ -125,7 +125,7 @@ describe( "Awaitable", () => {
 			const fromReject = new Error( "THROWN FROM REJECT" );
 			const fromOnRejected = new Error( "THROWN FROM OnREJECTED" );
 			const subject1 = new DeferredAwaitable<void>();
-			const subject2 = subject1.promise.then(
+			const subject2 = subject1.then(
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
 				( reason ) => { throw fromOnRejected; },
 			);
@@ -135,7 +135,7 @@ describe( "Awaitable", () => {
 			const fulfill3: AwaitableCallbackFulfilled<void,void> = ( value ) => { f3Called++; throw new Error( `TEST FAILED - Fulfilled when it should remain pending - (${typeof value}) ${value}` ); };
 			const reject3: AwaitableCallbackRejected<void,void> = ( reason ) => { r3Called++; throw new Error( `TEST FAILED - Rejected when it should remain pending - (${typeof reason}) ${reason}` ); };
 			const subject3 = subject2.then( fulfill3, reject3 );
-			const subject4 = subject1.promise.then(
+			const subject4 = subject1.then(
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
 				( reason ) => { expect( reason ).to.equal( originalReason ); expect( f3Called ).to.equal( 0 ); expect( r3Called ).to.equal( 0 ); },
 			);
@@ -146,7 +146,7 @@ describe( "Awaitable", () => {
 		it( "When called on an Awaitable in an invalid state, Rejects with Error", function () {
 			const originalReason = new Error( "ORIGINAL REASON" );
 			const subject1 = new DeferredAwaitable<void>();
-			const subject2 = subject1.promise.then(
+			const subject2 = subject1.then(
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
 				( reason ) => {
 					expect( reason ).to.be.an( "Error" );
@@ -169,5 +169,25 @@ describe( "DeferredAwaitable", function () {
 			const subject = new DeferredAwaitable<void>();
 			subject.toString().should.match( /\[object DeferredAwaitable<\d{10}.\d{3}-\d{4}:.{9}>\]/ );
 		} );
+	} );
+	describe( "#then", function () {
+		const originalValue = { value: "ORIGINAL VALUE" };
+		const subject1 = new DeferredAwaitable<typeof originalValue>();
+		const subject2 = subject1.then( (value) => { expect(value).to.equal(originalValue); } );
+		subject1.resolve(originalValue);
+		return subject2;
+	} );
+	describe( "#catch", function () {
+		const originalReason = { reason: "ORIGINAL REASON" };
+		const subject1 = new DeferredAwaitable<void>();
+		const subject2 = subject1.catch( (reason) => { expect(reason).to.equal(originalReason); } );
+		subject1.reject(originalReason);
+		return subject2;
+	} );
+	describe( "#finally", function () {
+		const subject1 = new DeferredAwaitable<undefined>();
+		const subject2 = subject1.finally( () => { return; } );
+		subject1.resolve(undefined);
+		return subject2;
 	} );
 } );

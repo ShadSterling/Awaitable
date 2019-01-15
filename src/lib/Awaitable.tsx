@@ -1,4 +1,4 @@
-import { DeferredWithFinally } from "../testlib/promises-finally-tests"; // tslint:disable-line:no-implicit-dependencies // type-only dependency doesn't exist at runtime
+import { DeferredWithFinally, promisesFinallyTests } from "../testlib/promises-finally-tests"; // tslint:disable-line:no-implicit-dependencies // type-only dependency doesn't exist at runtime
 
 import * as debugFactory from "debug";
 const debug: debugFactory.IDebugger = debugFactory( "Awaitable" );
@@ -53,7 +53,27 @@ export class DeferredAwaitable<T> implements DeferredWithFinally<T> {
 		debug( `${this.label()}/rejectPromise: Returning -- ${undefined}` );
 	}
 
-	// TODO: add passthroughs for then. catch, finally
+	/** Pass `then` through  */
+	public then<TResult1 = T, TResult2 = never>(
+		onfulfilled?: AwaitableCallbackFulfilled<T,TResult1>,
+		onrejected?: AwaitableCallbackRejected<T,TResult2>,
+	): Awaitable< TResult1 | TResult2 > {
+		return this.promise.then( onfulfilled, onrejected );
+	}
+
+	/** Pass `catch` through  */
+	public catch< TResult2 = never >(
+		onrejected?: AwaitableCallbackRejected< T, TResult2 >,
+	): Awaitable< T | TResult2 > {
+		return this.promise.catch( onrejected );
+	}
+
+	/** Pass `finally` through  */
+	public finally(
+		onfinally?: AwaitableCallbackFinally<T>,
+	): Awaitable<T> {
+		return this.promise.finally( onfinally );
+	}
 
 	// TODO: debug methods: make state invalid, make _reject throw
 
