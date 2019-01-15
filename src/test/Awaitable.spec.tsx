@@ -53,15 +53,17 @@ describe( "Awaitable", () => {
 
 	describe( "#then", function () {
 		it( "When called on an Awaitable in an invalid state, Rejects with Error", function () {
-			const subject = Awaitable.resolve<undefined>(undefined);
-			(subject as any)._state = "TESTING-INVALID-STATE"; // tslint:disable-line:no-any // use any to break encapsulation
-			return subject.then(
+			const subject1 = new DeferredAwaitable<undefined>();
+			subject1.fault_invalid_state();
+			const subject2 = subject1.then(
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
 				( reason ) => {
 					expect( reason ).to.be.an( "Error" );
-					(reason as Error).message.should.match( /Awaitable<\d{10}.\d{3}-\d{4}:undefined>.then: invalid state \(string\) TESTING-INVALID-STATE => undefined/ );
+					(reason as Error).message.should.match( /Awaitable<\d{10}.\d{3}-\d{4}:undefined>.then: invalid state \(string\) INJECTED-FAULT--INVALID-STATE => undefined/ );
 				},
 			);
+			subject1.resolve(undefined);
+			return subject2;
 		} );
 	} );
 
@@ -78,23 +80,21 @@ describe( "Awaitable", () => {
 
 	describe( "#_resolve", function () {
 
-		it( "When called on a pending Awaitable, When given a non-thenable value, When an onFulfilled has been attached, Catches any error thrown by an onFulfilled", function () {
-			const originalValue = { value: "ORIGINAL VALUE" };
-			const fromReject = new Error( "THROWN FROM REJECT" );
-			const fromOnFulfilled = new Error( "THROWN FROM OnFULFILLED" );
-			const subject1 = new DeferredAwaitable<typeof originalValue>();
-			const subject2 = subject1.then(
-				( value ) => { throw fromOnFulfilled; },
+		it( "When called on a pending Awaitable, When given a non-thenable value, When an onFulfilled has been attached, Catches any internal error thrown when running onFulfilled", function () {
+			const originalValue = { value: "ORIGINAL VALUE" }; // non-thenable value
+			const subject1 = new DeferredAwaitable<typeof originalValue>(); // pending Awaitable
+			let calledFulfill2 = 0;
+			let calledReject2 = 0;
+			const fulfill2: AwaitableCallbackFulfilled<typeof originalValue,void> = ( value  ) => { calledFulfill2++; throw new Error( `TEST FAILED - Fulfilled when it should remain pending - (${typeof value }) ${value }` ); };
+			const reject2:  AwaitableCallbackRejected< typeof originalValue,void> = ( reason ) => { calledReject2++; throw new Error( `TEST FAILED - Rejected when it should remain pending - (${ typeof reason}) ${reason}` ); };
+			const subject2 = subject1.then( fulfill2, reject2 ); // attach onFulfilled
+			subject1.fault_throw_internal_onfulfilled(); // thrown internal error in place of onFulfilled
+			const subject3 = subject1.then(
+				( value ) => { throw new Error( "THROWN FROM OnFULFILLED" ); },
 				( reason ) => { throw new Error( `TEST FAILED - Rejected when it should have fulfilled - (${typeof reason}) ${reason}` ); },
 			);
-			(subject2 as any)._reject = () => { throw fromReject; }; // tslint:disable-line:no-any // use any to break encapsulation
-			let f3Called = 0;
-			let r3Called = 0;
-			const fulfill3: AwaitableCallbackFulfilled<typeof originalValue,void> = ( value ) => { f3Called++; throw new Error( `TEST FAILED - Fulfilled when it should remain pending - (${typeof value}) ${value}` ); };
-			const reject3: AwaitableCallbackRejected<typeof originalValue,void> = ( reason ) => { r3Called++; throw new Error( `TEST FAILED - Rejected when it should remain pending - (${typeof reason}) ${reason}` ); };
-			const subject3 = subject2.then( fulfill3, reject3 );
 			const subject4 = subject1.then(
-				( value ) => { expect( value ).to.equal( originalValue ); expect( f3Called ).to.equal( 0 ); expect( r3Called ).to.equal( 0 ); },
+				( value ) => { expect( value ).to.equal( originalValue ); expect( calledFulfill2 ).to.equal( 0 ); expect( calledReject2 ).to.equal( 0 ); },
 				( reason ) => { throw new Error( `TEST FAILED - Rejected when it should have fulfilled - (${typeof reason}) ${reason}` ); },
 			);
 			subject1.resolve( originalValue );
@@ -108,10 +108,10 @@ describe( "Awaitable", () => {
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
 				( reason ) => {
 					expect( reason ).to.be.an( "Error" );
-					(reason as Error).message.should.match( /Awaitable<\d{10}.\d{3}-\d{4}:undefined>._resolve: invalid state \(string\) TESTING-INVALID-STATE => undefined/ );
+					(reason as Error).message.should.match( /Awaitable<\d{10}.\d{3}-\d{4}:undefined>._resolve: invalid state \(string\) INJECTED-FAULT--INVALID-STATE => undefined/ );
 				},
 			);
-			(subject1.promise as any)._state = "TESTING-INVALID-STATE"; // tslint:disable-line:no-any // use any to break encapsulation
+			subject1.fault_invalid_state();
 			subject1.resolve(originalValue);
 			return subject2;
 		} );
@@ -120,24 +120,22 @@ describe( "Awaitable", () => {
 
 	describe( "#_reject", function () {
 
-		it( "When called on a pending Awaitable, When given a non-thenable value, When an onRejected has been attached, Catches any error thrown by an onRejected", function () {
+		it( "When called on a pending Awaitable, When an onRejected has been attached, Catches any internal error thrown when running onRejected", function () {
 			const originalReason = new Error( "ORIGINAL REASON" );
-			const fromReject = new Error( "THROWN FROM REJECT" );
-			const fromOnRejected = new Error( "THROWN FROM OnREJECTED" );
-			const subject1 = new DeferredAwaitable<void>();
-			const subject2 = subject1.then(
+			const subject1 = new DeferredAwaitable<void>(); // pending awaitable
+			let calledFulfill2 = 0;
+			let calledReject2 = 0;
+			const fulfill2: AwaitableCallbackFulfilled<void,void> = ( value ) => { calledFulfill2++; throw new Error( `TEST FAILED - Fulfilled when it should remain pending - (${typeof value}) ${value}` ); };
+			const reject2: AwaitableCallbackRejected<void,void> = ( reason ) => { calledReject2++; throw new Error( `TEST FAILED - Rejected when it should remain pending - (${typeof reason}) ${reason}` ); };
+			const subject2 = subject1.then( fulfill2, reject2 ); // attach onRejected
+			subject1.fault_throw_internal_onrejected(); // thrown internal error in place of onRejected
+			const subject3 = subject1.then(
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
-				( reason ) => { throw fromOnRejected; },
+				( reason ) => { throw new Error( "THROWN FROM OnREJECTED" ); },
 			);
-			(subject2 as any)._reject = () => { throw fromReject; }; // tslint:disable-line:no-any // use any to break encapsulation
-			let f3Called = 0;
-			let r3Called = 0;
-			const fulfill3: AwaitableCallbackFulfilled<void,void> = ( value ) => { f3Called++; throw new Error( `TEST FAILED - Fulfilled when it should remain pending - (${typeof value}) ${value}` ); };
-			const reject3: AwaitableCallbackRejected<void,void> = ( reason ) => { r3Called++; throw new Error( `TEST FAILED - Rejected when it should remain pending - (${typeof reason}) ${reason}` ); };
-			const subject3 = subject2.then( fulfill3, reject3 );
 			const subject4 = subject1.then(
 				( value ) => { throw new Error( `TEST FAILED - Fulfilled when it should have rejected - (${typeof value}) ${value}` ); },
-				( reason ) => { expect( reason ).to.equal( originalReason ); expect( f3Called ).to.equal( 0 ); expect( r3Called ).to.equal( 0 ); },
+				( reason ) => { expect( reason ).to.equal( originalReason ); expect( calledFulfill2 ).to.equal( 0 ); expect( calledReject2 ).to.equal( 0 ); },
 			);
 			subject1.reject( originalReason );
 			return subject4;
@@ -151,10 +149,10 @@ describe( "Awaitable", () => {
 				( reason ) => {
 					expect( reason ).to.be.an( "Error" );
 					expect( reason ).not.to.equal( originalReason );
-					(reason as Error).message.should.match( /Awaitable<\d{10}.\d{3}-\d{4}:undefined>._reject: invalid state \(string\) TESTING-INVALID-STATE => undefined/ );
+					(reason as Error).message.should.match( /Awaitable<\d{10}.\d{3}-\d{4}:undefined>._reject: invalid state \(string\) INJECTED-FAULT--INVALID-STATE => undefined/ );
 				},
 			);
-			(subject1.promise as any)._state = "TESTING-INVALID-STATE"; // tslint:disable-line:no-any // use any to break encapsulation
+			subject1.fault_invalid_state();
 			subject1.reject(originalReason);
 			return subject2;
 		} );

@@ -39,6 +39,9 @@ export class DeferredAwaitable<T> implements DeferredWithFinally<T> {
 		debug( `${this.label(_fn)}: Returning` );
 	}
 
+	/** [object DeferredAwaitable<${ID}:${STATE}>] */
+	public toString(): string { return `[object ${this.label()}]`; }
+
 	/** Settles [[promise]] to fulfilled */
 	public resolve( value: T | PromiseLike<T> ): void {
 		debug( `${this.label()}/resolvePromise: Invoked` );
@@ -75,10 +78,22 @@ export class DeferredAwaitable<T> implements DeferredWithFinally<T> {
 		return this.promise.finally( onfinally );
 	}
 
-	// TODO: debug methods: make state invalid, make _reject throw
+	/** Fault Injection: put into invalid state */
+	public fault_invalid_state() {
+		(this.promise as any)._state = "INJECTED-FAULT--INVALID-STATE"; // tslint:disable-line:no-any // use any to break encapsulation
+	}
 
-	/** [object DeferredAwaitable<${ID}:${STATE}>] */
-	public toString(): string { return `[object ${this.label()}]`; }
+	/** Fault Injection: throw exception when processing rejection */
+	public fault_throw_internal_onfulfilled() {
+		const onfs: AwaitableChainFulfilled<T>[] = (this.promise as any)._onFulfilled; // tslint:disable-line:no-any no-unsafe-any // use any to break encapsulation
+		onfs[onfs.length-1] = ( value: T | PromiseLike<T> ) => { throw new Error( "INJECTED-FAULT--THROW-INTERNAL-ONFULFILLED" ); };
+	}
+
+	/** Fault Injection: throw exception when processing rejection */
+	public fault_throw_internal_onrejected() {
+		const onrs: AwaitableChainRejected<T>[] = (this.promise as any)._onRejected; // tslint:disable-line:no-any no-unsafe-any // use any to break encapsulation
+		onrs[onrs.length-1] = ( reason: any ) => { throw new Error( "INJECTED-FAULT--THROW-INTERNAL-ONREJECTED" ); }; // tslint:disable-line:no-any // any for compatibility
+	}
 
 	/** Gets the label of this [[DeferredAwaitable]] (for logging and debugging) */
 	public label( fn?: string ) { return ( this.promise ? `Deferred${this.promise.label()}` : `DeferredAbortable<uninitialized                >` ) + ( fn ? "." + fn : "" ); }
