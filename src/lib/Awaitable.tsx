@@ -11,7 +11,6 @@ export type AwaitableCallbackFulfilled<T,TResult1> = ( (  value: T   ) => TResul
 export type AwaitableCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 export type AwaitableCallbackFinally<  T         > = ( (        ) => T | PromiseLike<T> | undefined | void ) | null | undefined;
 type AwaitableThen<T, TResult1=T, TResult2=never> = ( onfulfilled?: AwaitableCallbackFulfilled<T,TResult1>, onrejected?:  AwaitableCallbackRejected< T,TResult2>, ) => Awaitable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
-// type AwaitableThen = <T, TResult1, TResult2>( onfulfilled?: AwaitableCallbackFulfilled<T,TResult1>, onrejected?:  AwaitableCallbackRejected< T,TResult2>, ) => Awaitable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
 type AwaitableChainFulfilled<T> = (  value: T   ) => void;
 type AwaitableChainRejected< T> = ( reason: any ) => void; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency
 
@@ -152,7 +151,7 @@ export class Awaitable<T> implements Promise<T> {
 	private static _thenIfThenable<T,TResult1,TResult2>( p: any ): AwaitableThen<T,TResult1,TResult2> | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
 			const then: AwaitableThen<T,TResult1,TResult2> | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof then === "function" ? then.bind( p ) as AwaitableThen<T,TResult1,TResult2> : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof then === "function" ? then.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}
@@ -269,7 +268,7 @@ export class Awaitable<T> implements Promise<T> {
 						resolve( this._value as {} as TResult1 ); // without onfulfilled this is a reinterpret cast
 						debug( `${this.label(_fn)}/exec: Returning ${undefined}` );
 					};
-				r = new Awaitable< TResult1 | TResult2 >( execf ); // TODO: why can't this just be TResult1?
+				r = new Awaitable< TResult1 | TResult2 >( execf ); // SOMEDAY: make it so this can take more specific type parameter < TResult1 >  -- as of TS 3.3 this breaks build because _onFulfilled<TR1> would have to accept parameter of TR2
 				break;
 			case AwaitableState.REJECTED:
 				debug( `${this.label(_fn)}: immediate rejection` );
@@ -294,7 +293,7 @@ export class Awaitable<T> implements Promise<T> {
 						reject( this._reason );
 						debug( `${this.label(_fn)}/exec: Returning ${undefined}` );
 					};
-				r = new Awaitable< TResult1 | TResult2 >( execr ); // TODO: why can't this just be TResult1?
+				r = new Awaitable< TResult1 | TResult2 >( execr ); // SOMEDAY: make it so this can take more specific type parameter < TResult1 >  -- as of TS 3.3 this breaks build because _onFulfilled<TR1> would have to accept parameter of TR2
 				break;
 			default:
 				const err: string = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AwaitableState[this._state]}`;

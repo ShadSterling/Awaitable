@@ -30,6 +30,7 @@
     "dtest": "                     npm run deps && npm run audit && npm run build && npm run lint && npm run test",
     "retest": "   npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test",
     "cover": "   : Run tests and generate coverage reports                                      ; echo \"Generating Coverage Reports\" && ./timeout.sh 300 nyc report --reporter html --reporter json && echo \"Reports Complete\"",
+    "tcover": "                                                                                      npm run test && npm run cover",
     "bcover": "                                    npm run audit && npm run build && npm run lint && npm run test && npm run cover",
     "dcover": "                    npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover",
     "doc": "typedoc src --out doc",
@@ -46,6 +47,7 @@
     "ready": "nyc check-coverage --branches 100 --functions 100 --lines 100 --statements 100",
     "tready": "                                                                                      npm run test && npm run cover && npm run doc && npm run ready",
     "bready": "                                    npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run ready",
+    "dready": "                    npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run ready",
     "reready": "  npm run reset && npm run deps && npm run audit && npm run build && npm run lint && npm run test && npm run cover && npm run doc && npm run ready",
     "start": "echo nothing to start - this is a library",
     "restart": "npm run rebuild && npm run start",
@@ -68,12 +70,12 @@
     "mocha-sonar-reporter": "0.1.X",
     "mochawesome": "3.1.X",
     "npm": "6.5.X",
-    "nyc": "11.7.X",
+    "nyc": "13.3.X",
     "promises-aplus-tests": "2.1.X",
     "source-map-support": "0.5.X",
     "tslint": "5.11.X",
-    "typedoc": "0.11.X",
-    "typescript": "3.0.X"
+    "typedoc": "0.14.X",
+    "typescript": "3.3.X"
   },
   "nyc": {
     "include": [
