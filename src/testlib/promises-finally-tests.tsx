@@ -11,40 +11,54 @@ export type PromiseCallbackRejected< T,TResult2> = ( ( reason: any ) => TResult2
 export type PromiseCallbackFinally<  T         > = ( (        ) => T | PromiseLike<T> | undefined | void ) | null | undefined;
 
 export interface PromiseWithFinally<T> extends Promise<T> { // tslint:disable-line:interface-name // no I for consistency
+	/** The same then as Promise.then */
 	then<TResult1 = T, TResult2 = never>(
 		onfulfilled?: PromiseCallbackFulfilled<T,TResult1>,
 		onrejected?: PromiseCallbackRejected<T,TResult2>,
 	): PromiseWithFinally< TResult1 | TResult2 >;
+	/** The same catch as Promise.catch */
 	catch< TResult2 = never >(
 		onrejected?: PromiseCallbackRejected< T, TResult2 >,
 	): PromiseWithFinally< T | TResult2 >;
+	/** The added finally method */
 	finally( onfinally?: PromiseCallbackFinally<T>, ): PromiseWithFinally<T>;
 }
 
 export type DeferredWithFinally<T=any> = { // tslint:disable-line:no-any // any for compatibility
+	/** Unresolved promise */
 	promise: PromiseWithFinally<T>,
+	/** Resolver for [[promise]] */
 	resolve: (  value: T   ) => void,
+	/** Rejecter for [[promise]] */
 	reject:  ( reason: any ) => void, // tslint:disable-line:no-any // any for compatibility
 };
 
 export type AdapterWithFinally = {
+	/** Generate resolved promise */
 	resolved?: <T=any>( value: T ) => PromiseWithFinally<T>, // tslint:disable-line:no-any // any for compatibility
+	/** Generate rejected promise */
 	rejected?: ( reason: any ) => PromiseWithFinally<never>, // tslint:disable-line:no-any // any for compatibility
+	/** Generate deferred promise */
 	deferred: <T=any>() => DeferredWithFinally<T>; // tslint:disable-line:no-any // any for compatibility
+	/** Generate promise from given exec */
 	fromexec: <T=any>( exec: PromiseExecutor<T> ) => PromiseWithFinally<T>; // tslint:disable-line:no-any // any for compatibility
 };
 
 export type NormalizedAdapterWithFinally = {
+	/** Generate resolved promise */
 	resolved: <T=any>(  value: T   ) => PromiseWithFinally<T>, // tslint:disable-line:no-any // any for compatibility
+	/** Generate rejected promise */
 	rejected: ( reason: any ) => PromiseWithFinally<never>, // tslint:disable-line:no-any // any for compatibility
+	/** Generate deferred promise */
 	deferred: <T=any>() => DeferredWithFinally<T>; // tslint:disable-line:no-any // any for compatibility
+	/** Generate promise from given exec */
 	fromexec: <T=any>( exec: PromiseExecutor<T> ) => PromiseWithFinally<T>; // tslint:disable-line:no-any // any for compatibility
 };
 
 export namespace promisesFinallyTests { // tslint:disable-line:no-namespace // this really isn't a class
 
 	/** Normalizes by adding default implementations of resolved and rejected */
-	export function normalizeAdapter( adapter: AdapterWithFinally ): NormalizedAdapterWithFinally { // convert-in-place cast
+	export function normalizeAdapter( adapter: AdapterWithFinally ): NormalizedAdapterWithFinally { // tslint:disable-line:completed-docs // TODO: tslint bug -- function has documentation // convert-in-place cast
 		if( !adapter.resolved ) {
 			adapter.resolved = function<T=any>( value: T ) { // tslint:disable-line:no-any // any for compatibility
 				const d = adapter.deferred<T>();
@@ -63,7 +77,7 @@ export namespace promisesFinallyTests { // tslint:disable-line:no-namespace // t
 	}
 
 	/** Run tests as Mocha tests */
-	export function mocha( _adapter: AdapterWithFinally ): void {
+	export function mocha( _adapter: AdapterWithFinally ): void { // tslint:disable-line:completed-docs // TODO: tslint bug -- function has documentation
 		const adapter = normalizeAdapter( _adapter );
 
 		describe("onFinally", () => {
